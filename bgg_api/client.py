@@ -53,9 +53,13 @@ class BGGClient:
     def _request(self, endpoint, params):
         """Internal method to handle requests and retries for 202 status."""
         url = f"{self.api_url}/{endpoint}"
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
+
         for attempt in range(self.max_retries):
             try:
-                response = self.session.get(url, params=params)
+                response = self.session.get(url, params=params, headers=headers)
 
                 if response.status_code == 202:
                     log.warning(

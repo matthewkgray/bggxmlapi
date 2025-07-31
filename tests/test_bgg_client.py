@@ -147,8 +147,33 @@ def test_client_retry_failure(bgg_client):
 def test_network_error_wrapper(bgg_client):
     """Test that requests exceptions are wrapped in BGGNetworkError."""
     thing_url = f"{bgg_client.api_url}/thing"
-    responses.add(responses.GET, thing_url, body=ConnectionError("Test connection error"))
+    responses.add(responses.GET, thing_url, body=requests.exceptions.ConnectionError("Test connection error"))
 
     game = bgg_client.get_game(123)
     with pytest.raises(BGGNetworkError):
         game._fetch_data()
+
+
+@responses.activate
+def test_auth_token_header(bgg_client):
+    """Test that the client sends the Authorization header if a token is provided."""
+    token = "test-token-123"
+    client = BGGClient(api_token=token)
+    # We need to replace the session for `responses` to work
+    client.session = requests.Session()
+
+    thing_url = f"{client.api_url}/thing"
+    responses.add(
+        responses.GET,
+        thing_url,
+        body='<items><item id="123"/></items>',
+        status=200,
+    )
+
+    game = client.get_game(123)
+    game._fetch_data() # Trigger the call
+
+    assert len(responses.calls) == 1
+    sent_headers = responses.calls[0].request.headers
+    assert "Authorization" in sent_headers
+    assert sent_headers["Authorization"] == f"Bearer {token}"
