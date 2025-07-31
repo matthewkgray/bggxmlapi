@@ -138,6 +138,61 @@ class Game:
                 )
         return PlayerSuggestions(suggestions)
 
+    @property
+    def average_rating(self) -> Optional[float]:
+        """The average user rating for the game."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+
+        # Path for /thing results
+        rating_el = self._xml_data.find("./statistics/ratings/average")
+        if rating_el is not None:
+            rating_val = rating_el.get("value")
+            try:
+                return float(rating_val)
+            except (ValueError, TypeError):
+                return None
+
+        # Path for /collection results
+        rating_el = self._xml_data.find("./stats/rating/average")
+        if rating_el is not None:
+            rating_val = rating_el.get("value")
+            try:
+                return float(rating_val)
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @property
+    def owned_by(self) -> Optional[int]:
+        """The number of users who own the game."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+
+        # Path for /thing results
+        stats_el = self._xml_data.find("./statistics/ratings")
+        if stats_el is not None:
+            users_owned_val = stats_el.get("owned")
+            if users_owned_val is None: # BGG API doesn't always return this
+                # Fallback to usersrated as a proxy for popularity
+                users_owned_val = stats_el.get("usersrated")
+
+            try:
+                return int(users_owned_val)
+            except (ValueError, TypeError):
+                return None
+
+        # Path for /collection results
+        stats_el = self._xml_data.find("./stats")
+        if stats_el is not None:
+            users_owned_val = stats_el.get("owned")
+            try:
+                return int(users_owned_val)
+            except (ValueError, TypeError):
+                return None
+
+        return None
+
 
 class User:
     """
