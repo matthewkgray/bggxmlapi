@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<user id="12345" name="testuser" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+    <firstname value="Test"/>
+    <lastname value="User"/>
+    <yearregistered value="2010"/>
+    <lastlogin value="2023-10-27"/>
+</user>
