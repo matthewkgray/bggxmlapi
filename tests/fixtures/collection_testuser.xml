@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items totalitems="2" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+    <item objecttype="thing" objectid="174430" subtype="boardgame">
+        <name sortindex="1">Gloomhaven</name>
+        <yearpublished>2017</yearpublished>
+        <stats minplayers="1" maxplayers="4">
+            <rating value="8.9">
+                <usersrated value="45000"/>
+            </rating>
+        </stats>
+        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 12:00:00"/>
+        <numplays>5</numplays>
+    </item>
+    <item objecttype="thing" objectid="30549" subtype="boardgame">
+        <name sortindex="1">Pandemic Legacy: Season 1</name>
+        <yearpublished>2015</yearpublished>
+        <stats minplayers="2" maxplayers="4">
+            <rating value="9.5">
+                <usersrated value="40000"/>
+            </rating>
+        </stats>
+        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 12:00:00"/>
+        <numplays>10</numplays>
+    </item>
+</items>
