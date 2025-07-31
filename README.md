@@ -1,7 +1,10 @@
 # BGG API Python Client
 
+> [!WARNING]
+> **Disclaimer**: This project is currently in the alpha stage of development. It is not yet ready for production use and has not been field-tested. The code is AI-written and is pending a full review and vetting process.
+
 [![PyPI version](https://badge.fury.io/py/bgg-api.svg)](https://badge.fury.io/py/bgg-api)
-[![Tests](https://github.com/your-username/bgg-api/actions/workflows/main.yml/badge.svg)](https://github.com/your-username/bgg-api/actions)
+[![Tests](https://github.com/matthewkgray/bgg-api/actions/workflows/main.yml/badge.svg)](https://github.com/matthewkgray/bgg-api/actions)
 
 A Pythonic, cached, and easy-to-use client for the BoardGameGeek (BGG) XML API2.
 
@@ -14,12 +17,6 @@ This library provides a clean, intuitive interface for accessing BGG data, while
 -   **Caching**: API responses are cached to improve performance and respect BGG's rate limits.
 -   **Robust**: Handles API errors and network issues gracefully.
 -   **Typed**: Fully type-hinted for a better developer experience.
-
-## Installation
-
-```bash
-pip install bgg-api
-```
 
 ## Usage
 
