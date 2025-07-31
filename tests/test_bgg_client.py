@@ -47,6 +47,44 @@ def test_get_game_lazy_loading(bgg_client):
     assert game.year_published == 2017
     assert len(responses.calls) == 1
 
+
+@responses.activate
+def test_get_game_player_suggestions(bgg_client):
+    """Test parsing of player suggestions poll."""
+    game_id = 174430
+    mock_url = f"{bgg_client.api_url}/thing"
+    responses.add(
+        responses.GET,
+        mock_url,
+        body=load_fixture("thing_174430.xml"),
+        status=200,
+        content_type="application/xml",
+    )
+
+    game = bgg_client.get_game(game_id)
+    suggestions = game.player_suggestions
+
+    assert len(suggestions) == 5
+
+    sugs = list(suggestions)
+
+    s1 = sugs[0]
+    assert s1.player_count == "1"
+    assert s1.best_votes == 10
+    assert s1.recommended_votes == 20
+    assert s1.not_recommended_votes == 5
+
+    s2 = sugs[1]
+    assert s2.player_count == "2"
+    assert s2.best_votes == 50
+    assert s2.recommended_votes == 30
+    assert s2.not_recommended_votes == 0
+
+    s4plus = sugs[4]
+    assert s4plus.player_count == "4+"
+    assert s4plus.not_recommended_votes == 1
+
+
 @responses.activate
 def test_get_user_and_collection(bgg_client):
     """Test lazy loading of user and their collection."""
