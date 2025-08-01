@@ -218,41 +218,27 @@ def test_auth_token_header(bgg_client):
 
 
 @responses.activate
-def test_get_owned_by_for_collection_game(bgg_client):
-    """Test that owned_by for a game from a collection fetches full game data."""
+def test_get_owned_by_from_collection_item(bgg_client):
+    """Test that owned_by is parsed correctly from a collection item's stats."""
     username = "testuser"
-    game_id = 174430
-    user_url = f"{bgg_client.api_url}/user"
     collection_url = f"{bgg_client.api_url}/collection"
-    thing_url = f"{bgg_client.api_url}/thing"
 
-    responses.add(
-        responses.GET, user_url, body=load_fixture("user_testuser.xml"), status=200
-    )
     responses.add(
         responses.GET,
         collection_url,
         body=load_fixture("collection_testuser.xml"),
         status=200,
     )
-    responses.add(
-        responses.GET,
-        thing_url,
-        body=load_fixture("thing_174430.xml"),
-        status=200,
-        content_type="application/xml",
-    )
 
     user = bgg_client.get_user(username)
     collection = user.collection
     game = list(collection)[0]
 
-    assert game.id == game_id
-    # At this point, only the collection call should have been made
+    # The collection call should be the only one made
     assert len(responses.calls) == 1
 
-    # Accessing owned_by should trigger a fetch for the thing data
-    # NOTE: thing_174430.xml doesn't have `owned` so we fallback to `usersrated`
-    assert game.owned_by == 45000
-    assert len(responses.calls) == 2
-    assert responses.calls[1].request.params["id"] == str(game_id)
+    # The value should come directly from the `numowned` attribute in the fixture
+    assert game.owned_by == 50000
+
+    # No new API calls should be made
+    assert len(responses.calls) == 1
