@@ -1,6 +1,7 @@
 import pytest
 import responses
 from pathlib import Path
+from unittest.mock import patch
 
 from bgg_api.client import BGGClient
 from bgg_api.exceptions import BGGAPIError, BGGNetworkError
@@ -268,3 +269,73 @@ def test_client_backoff_on_429(bgg_client):
     game._fetch_data()
 
     assert len(responses.calls) == 4
+
+
+@responses.activate
+@patch("time.sleep")
+def test_client_backoff_decay(mock_sleep, bgg_client):
+    """Test that the backoff delay decays after successful requests."""
+    # Configure client for predictable testing
+    bgg_client.initial_backoff = 2.0
+    bgg_client.backoff_factor = 2.0
+    bgg_client.backoff_decay = 0.9
+    bgg_client._current_backoff = bgg_client.initial_backoff
+    bgg_client.max_retries = 5
+    game_id = 123
+    thing_url = f"{bgg_client.api_url}/thing"
+
+    # --- Step 1: First request fails once, then succeeds ---
+    responses.add(responses.GET, thing_url, status=429)
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id}"/></items>',
+        status=200,
+    )
+
+    game = bgg_client.get_game(game_id)
+    game._fetch_data()  # Trigger API call
+
+    # It should have slept for the initial backoff time (2.0s)
+    mock_sleep.assert_called_once_with(2.0)
+    # backoff starts at 2.0
+    # failure occurs, sleep(2.0), backoff becomes 2.0 * 2.0 = 4.0
+    # success occurs, backoff becomes max(2.0, 4.0 * 0.9) = 3.6
+    assert bgg_client._current_backoff == pytest.approx(3.6)
+    assert len(responses.calls) == 2
+
+    # --- Step 2: Make another successful request ---
+    game_id_2 = 456
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id_2}"/></items>',
+        status=200,
+    )
+    # Reset mock to test subsequent calls
+    mock_sleep.reset_mock()
+
+    game2 = bgg_client.get_game(game_id_2)
+    game2._fetch_data()
+
+    # No new sleep calls should have happened
+    mock_sleep.assert_not_called()
+    # Backoff (3.6) should decay further: max(2.0, 3.6 * 0.9) = 3.24
+    assert bgg_client._current_backoff == pytest.approx(3.24)
+    assert len(responses.calls) == 3
+
+    # --- Step 3: Repeated successful requests should decay back to initial ---
+    for _ in range(20):
+        # Use a new game id each time to avoid caching
+        next_id = 789 + _
+        responses.add(
+            responses.GET,
+            thing_url,
+            body=f'<items><item id="{next_id}"/></items>',
+            status=200,
+        )
+        g = bgg_client.get_game(next_id)
+        g._fetch_data()
+
+    # After many successes, it should be very close to the initial backoff
+    assert bgg_client._current_backoff == pytest.approx(bgg_client.initial_backoff)
