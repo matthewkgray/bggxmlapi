@@ -215,3 +215,44 @@ def test_auth_token_header(bgg_client):
     sent_headers = responses.calls[0].request.headers
     assert "Authorization" in sent_headers
     assert sent_headers["Authorization"] == f"Bearer {token}"
+
+
+@responses.activate
+def test_get_owned_by_for_collection_game(bgg_client):
+    """Test that owned_by for a game from a collection fetches full game data."""
+    username = "testuser"
+    game_id = 174430
+    user_url = f"{bgg_client.api_url}/user"
+    collection_url = f"{bgg_client.api_url}/collection"
+    thing_url = f"{bgg_client.api_url}/thing"
+
+    responses.add(
+        responses.GET, user_url, body=load_fixture("user_testuser.xml"), status=200
+    )
+    responses.add(
+        responses.GET,
+        collection_url,
+        body=load_fixture("collection_testuser.xml"),
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=load_fixture("thing_174430.xml"),
+        status=200,
+        content_type="application/xml",
+    )
+
+    user = bgg_client.get_user(username)
+    collection = user.collection
+    game = list(collection)[0]
+
+    assert game.id == game_id
+    # At this point, only the collection call should have been made
+    assert len(responses.calls) == 1
+
+    # Accessing owned_by should trigger a fetch for the thing data
+    # NOTE: thing_174430.xml doesn't have `owned` so we fallback to `usersrated`
+    assert game.owned_by == 45000
+    assert len(responses.calls) == 2
+    assert responses.calls[1].request.params["id"] == str(game_id)
