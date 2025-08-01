@@ -27,7 +27,8 @@ class BGGClient:
         max_retries: int = 10,
         initial_backoff: int = 2,
         backoff_factor: float = 2.0,
-        backoff_decay: float = 0.9,
+        backoff_decay: float = 0.95,
+        rate_limit_qps: int = 5,
     ):
         """
         Initializes the BGGClient.
@@ -40,6 +41,7 @@ class BGGClient:
             initial_backoff (int): The initial delay in seconds for the first retry.
             backoff_factor (float): The factor by which the backoff delay increases.
             backoff_decay (float): The factor by which the backoff delay decreases after a success.
+            rate_limit_qps (int): The number of queries per second to throttle requests to.
         """
         cache_path = Path(cache_dir).expanduser()
         self.session = requests_cache.CachedSession(
@@ -56,10 +58,22 @@ class BGGClient:
         self.initial_backoff = initial_backoff
         self.backoff_factor = backoff_factor
         self.backoff_decay = backoff_decay
+        self.rate_limit_qps = rate_limit_qps
         self._current_backoff = initial_backoff
+        self._last_request_time = 0
 
     def _request(self, endpoint, params):
         """Internal method to handle requests and retries for 202 status."""
+        if self.rate_limit_qps > 0:
+            min_interval = self._current_backoff / self.rate_limit_qps
+            now = time.monotonic()
+            elapsed = now - self._last_request_time
+            if elapsed < min_interval:
+                sleep_time = min_interval - elapsed
+                log.debug(f"Throttling request. Sleeping for {sleep_time:.2f}s")
+                time.sleep(sleep_time)
+            self._last_request_time = time.monotonic()
+
         url = f"{self.api_url}/{endpoint}"
         headers = {}
         if self.api_token:
