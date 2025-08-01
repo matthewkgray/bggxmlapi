@@ -24,8 +24,9 @@ class BGGClient:
         cache_dir: str = "~/.bgg_cache",
         cache_ttl: int = 3600,
         api_token: Optional[str] = None,
-        max_retries: int = 5,
-        retry_delay: int = 2,
+        max_retries: int = 10,
+        initial_backoff: int = 1,
+        backoff_factor: float = 2.0,
     ):
         """
         Initializes the BGGClient.
@@ -34,8 +35,9 @@ class BGGClient:
             cache_dir (str): The directory to use for caching API responses.
             cache_ttl (int): The time-to-live for cached data in seconds.
             api_token (str, optional): The BGG API token for authenticated requests.
-            max_retries (int): Max number of retries for 202 status.
-            retry_delay (int): Seconds to wait between retries for 202 status.
+            max_retries (int): Max number of retries for failed requests (e.g. 429, 202).
+            initial_backoff (int): The initial delay in seconds for the first retry.
+            backoff_factor (float): The factor by which the backoff delay increases.
         """
         cache_path = Path(cache_dir).expanduser()
         self.session = requests_cache.CachedSession(
@@ -44,11 +46,13 @@ class BGGClient:
             expire_after=cache_ttl,
             allowable_methods=('GET', 'POST'),
             stale_if_error=True,
+            status_forcelist=[429, 500, 502, 503, 504],
         )
         self.api_token = api_token
         self.api_url = "https://www.boardgamegeek.com/xmlapi2"
         self.max_retries = max_retries
-        self.retry_delay = retry_delay
+        self.initial_backoff = initial_backoff
+        self.backoff_factor = backoff_factor
 
     def _request(self, endpoint, params):
         """Internal method to handle requests and retries for 202 status."""
@@ -57,16 +61,19 @@ class BGGClient:
         if self.api_token:
             headers["Authorization"] = f"Bearer {self.api_token}"
 
+        backoff_delay = self.initial_backoff
         for attempt in range(self.max_retries):
             try:
                 response = self.session.get(url, params=params, headers=headers)
 
-                if response.status_code == 202:
+                # Handle transient errors with exponential backoff
+                if response.status_code in [202, 429]:
                     log.warning(
-                        f"BGG API returned 202 Accepted. Retrying in {self.retry_delay}s... (Attempt {attempt + 1}/{self.max_retries})"
+                        f"BGG API returned {response.status_code}. Retrying in {backoff_delay}s... (Attempt {attempt + 1}/{self.max_retries})"
                     )
-                    time.sleep(self.retry_delay)
-                    continue # Retry the request
+                    time.sleep(backoff_delay)
+                    backoff_delay *= self.backoff_factor
+                    continue
 
                 response.raise_for_status()
 

@@ -242,3 +242,29 @@ def test_get_owned_by_from_collection_item(bgg_client):
 
     # No new API calls should be made
     assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_client_backoff_on_429(bgg_client):
+    """Test that the client backs off and retries on a 429 status code."""
+    bgg_client.initial_backoff = 0.01  # Speed up test
+    bgg_client.max_retries = 5
+    game_id = 456
+    thing_url = f"{bgg_client.api_url}/thing"
+
+    # Simulate BGG rate limiting us, then returning success
+    responses.add(responses.GET, thing_url, status=429)
+    responses.add(responses.GET, thing_url, status=429)
+    responses.add(responses.GET, thing_url, status=429)
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id}"/></items>',
+        status=200,
+    )
+
+    game = bgg_client.get_game(game_id)
+    # This should trigger the API calls with backoff
+    game._fetch_data()
+
+    assert len(responses.calls) == 4
