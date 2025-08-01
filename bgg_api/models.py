@@ -38,9 +38,6 @@ class Game:
 
     def _set_xml_data(self, xml_data: etree._Element):
         """Helper to set the xml data for the game from a 'thing' call."""
-        if self._xml_data is not None:
-            return # Data already set
-
         item = xml_data.find(f".//item[@id='{self.id}']")
 
         if item is None:
@@ -166,31 +163,35 @@ class Game:
     @property
     def owned_by(self) -> Optional[int]:
         """The number of users who own the game."""
-        self._fetch_data()
-        if self._xml_data is None: return None
+        self._fetch_data()  # Ensures data is loaded for non-collection/search games
+        if self._xml_data is None:
+            return None
 
-        # Path for /thing results
+        # If we have partial data (no 'statistics' element), we need to fetch the full data.
+        if self._xml_data.find("statistics") is None:
+            log.debug(f"Fetching full data for game {self.id} to get ownership stats.")
+            full_xml_data = self._client._get_game_data(self.id)
+            self._set_xml_data(full_xml_data)
+
+        if self._xml_data is None:
+            return None
+
         stats_el = self._xml_data.find("./statistics/ratings")
         if stats_el is not None:
+            # First, try the 'owned' attribute on the <ratings> element
             users_owned_val = stats_el.get("owned")
-            if users_owned_val is None: # BGG API doesn't always return this
-                # Fallback to usersrated as a proxy for popularity
-                users_owned_val = stats_el.get("usersrated")
 
-            try:
-                return int(users_owned_val)
-            except (ValueError, TypeError):
-                return None
+            # If that's not present, fallback to the <usersrated> element
+            if users_owned_val is None:
+                usersrated_el = stats_el.find("usersrated")
+                if usersrated_el is not None:
+                    users_owned_val = usersrated_el.get("value")
 
-        # Path for /collection results
-        stats_el = self._xml_data.find("./stats")
-        if stats_el is not None:
-            users_owned_val = stats_el.get("owned")
-            try:
-                return int(users_owned_val)
-            except (ValueError, TypeError):
-                return None
-
+            if users_owned_val is not None:
+                try:
+                    return int(users_owned_val)
+                except (ValueError, TypeError):
+                    return None
         return None
 
 
