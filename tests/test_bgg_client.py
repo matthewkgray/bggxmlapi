@@ -281,6 +281,7 @@ def test_client_backoff_decay(mock_sleep, bgg_client):
     bgg_client.backoff_decay = 0.9
     bgg_client._current_backoff = bgg_client.initial_backoff
     bgg_client.max_retries = 5
+    bgg_client.rate_limit_qps = 0  # Disable throttling for this test
     game_id = 123
     thing_url = f"{bgg_client.api_url}/thing"
 
@@ -339,3 +340,75 @@ def test_client_backoff_decay(mock_sleep, bgg_client):
 
     # After many successes, it should be very close to the initial backoff
     assert bgg_client._current_backoff == pytest.approx(bgg_client.initial_backoff)
+
+
+@responses.activate
+@patch("time.sleep")
+@patch("time.monotonic")
+def test_client_throttling(mock_monotonic, mock_sleep, bgg_client):
+    """Test that the client throttles requests based on rate_limit_qps."""
+    # Configure client for predictable testing
+    bgg_client.initial_backoff = 2.0
+    bgg_client.rate_limit_qps = 5  # As per user request
+    bgg_client._current_backoff = bgg_client.initial_backoff
+    bgg_client._last_request_time = 0  # Reset for test
+    game_id = 789
+    thing_url = f"{bgg_client.api_url}/thing"
+
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id}"/></items>',
+        status=200,
+    )
+
+    # --- First call ---
+    mock_monotonic.return_value = 1000.0
+    game = bgg_client.get_game(game_id)
+    game._fetch_data()  # Trigger API call
+
+    # The first call should not sleep, but it should set the last request time.
+    mock_sleep.assert_not_called()
+    assert bgg_client._last_request_time == 1000.0
+
+    # --- Second call, immediately after (0.08s later) ---
+    mock_sleep.reset_mock()
+    game_id_2 = 790
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id_2}"/></items>',
+        status=200,
+    )
+    mock_monotonic.return_value = 1000.08
+
+    game2 = bgg_client.get_game(game_id_2)
+    game2._fetch_data()
+
+    # Expected interval = backoff / qps = 2.0 / 5 = 0.4s
+    # Elapsed time = 1000.08 - 1000.0 = 0.08s
+    # Expected sleep time = 0.4 - 0.08 = 0.32s
+    mock_sleep.assert_called_once_with(pytest.approx(0.32))
+    # The last request time should be updated to the time the new request was made
+    assert bgg_client._last_request_time == 1000.08
+
+
+    # --- Third call, after enough time has passed ---
+    mock_sleep.reset_mock()
+    game_id_3 = 791
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id_3}"/></items>',
+        status=200,
+    )
+    # Pretend the last request (including sleep) took 0.5s
+    mock_monotonic.return_value = 1000.08 + 0.5
+
+    game3 = bgg_client.get_game(game_id_3)
+    game3._fetch_data()
+
+    # Elapsed time = (1000.08 + 0.5) - 1000.08 = 0.5s
+    # Expected interval is 0.4s. Since 0.5 > 0.4, no sleep is needed.
+    mock_sleep.assert_not_called()
+    assert bgg_client._last_request_time == 1000.58
