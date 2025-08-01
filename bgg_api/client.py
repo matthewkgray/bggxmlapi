@@ -25,8 +25,9 @@ class BGGClient:
         cache_ttl: int = 3600,
         api_token: Optional[str] = None,
         max_retries: int = 10,
-        initial_backoff: int = 1,
+        initial_backoff: int = 2,
         backoff_factor: float = 2.0,
+        backoff_decay: float = 0.9,
     ):
         """
         Initializes the BGGClient.
@@ -38,6 +39,7 @@ class BGGClient:
             max_retries (int): Max number of retries for failed requests (e.g. 429, 202).
             initial_backoff (int): The initial delay in seconds for the first retry.
             backoff_factor (float): The factor by which the backoff delay increases.
+            backoff_decay (float): The factor by which the backoff delay decreases after a success.
         """
         cache_path = Path(cache_dir).expanduser()
         self.session = requests_cache.CachedSession(
@@ -53,6 +55,8 @@ class BGGClient:
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
         self.backoff_factor = backoff_factor
+        self.backoff_decay = backoff_decay
+        self._current_backoff = initial_backoff
 
     def _request(self, endpoint, params):
         """Internal method to handle requests and retries for 202 status."""
@@ -61,7 +65,6 @@ class BGGClient:
         if self.api_token:
             headers["Authorization"] = f"Bearer {self.api_token}"
 
-        backoff_delay = self.initial_backoff
         for attempt in range(self.max_retries):
             try:
                 response = self.session.get(url, params=params, headers=headers)
@@ -69,10 +72,10 @@ class BGGClient:
                 # Handle transient errors with exponential backoff
                 if response.status_code in [202, 429]:
                     log.warning(
-                        f"BGG API returned {response.status_code}. Retrying in {backoff_delay}s... (Attempt {attempt + 1}/{self.max_retries})"
+                        f"BGG API returned {response.status_code}. Retrying in {self._current_backoff}s... (Attempt {attempt + 1}/{self.max_retries})"
                     )
-                    time.sleep(backoff_delay)
-                    backoff_delay *= self.backoff_factor
+                    time.sleep(self._current_backoff)
+                    self._current_backoff *= self.backoff_factor
                     continue
 
                 response.raise_for_status()
@@ -81,6 +84,11 @@ class BGGClient:
                     raise BGGAPIError("BGG API returned an empty response.")
 
                 xml_root = etree.fromstring(response.content)
+
+                # Success! Decay the backoff for the next request
+                self._current_backoff = max(
+                    self.initial_backoff, self._current_backoff * self.backoff_decay
+                )
                 return xml_root
 
             except etree.XMLSyntaxError as e:
