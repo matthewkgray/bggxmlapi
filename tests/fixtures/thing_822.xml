@@ -416,5 +416,25 @@
 <link type="boardgamepublisher" id="131" value="Venice Connection"/>
 <link type="boardgamepublisher" id="1511" value="Ventura Games"/>
 <link type="boardgamepublisher" id="538" value="Z-Man Games"/>
+<statistics page="1">
+<ratings>
+<usersrated value="134525"/>
+<average value="7.41278"/>
+<bayesaverage value="7.29638"/>
+<ranks>
+<rank type="subtype" id="1" name="boardgame" friendlyname="Board Game Rank" value="233" bayesaverage="7.29638"/>
+<rank type="family" id="5499" name="familygames" friendlyname="Family Game Rank" value="56" bayesaverage="7.28906"/>
+</ranks>
+<stddev value="1.31168"/>
+<median value="0"/>
+<owned value="211857"/>
+<trading value="2046"/>
+<wanting value="696"/>
+<wishing value="10309"/>
+<numcomments value="22731"/>
+<numweights value="8489"/>
+<averageweight value="1.888"/>
+</ratings>
+</statistics>
 </item>
 </items>
