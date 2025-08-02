@@ -412,3 +412,89 @@ def test_client_throttling(mock_monotonic, mock_sleep, bgg_client):
     # Expected interval is 0.4s. Since 0.5 > 0.4, no sleep is needed.
     mock_sleep.assert_not_called()
     assert bgg_client._last_request_time == 1000.58
+
+
+@responses.activate
+class TestGameCarcassonne:
+    """Tests for the comprehensive Carcassonne game object (ID 822)."""
+
+    @pytest.fixture(scope="class")
+    def game(self, bgg_client):
+        """Fixture to set up the Carcassonne game object."""
+        game_id = 822
+        mock_url = f"{bgg_client.api_url}/thing"
+        responses.add(
+            responses.GET,
+            mock_url,
+            body=load_fixture("thing_822.xml"),
+            status=200,
+            content_type="application/xml",
+        )
+        # The game object is created once for the class, and data is fetched lazily.
+        g = bgg_client.get_game(game_id)
+        # Prefetch data for all tests in this class
+        g._fetch_data()
+        return g
+
+    def test_basic_properties(self, game):
+        """Test basic string and URL properties."""
+        assert game.name == "Carcassonne"
+        assert game.thumbnail == "https://cf.geekdo-images.com/okM0dq_bEXnbyQTOvHfwRA__thumb/img/88274KiOg94wziybVHyW8AeOiXg=/fit-in/200x150/filters:strip_icc()/pic6544250.png"
+        assert game.image == "https://cf.geekdo-images.com/okM0dq_bEXnbyQTOvHfwRA__original/img/aVZEXAI-cUtuunNfPhjeHlS4fwQ=/0x0/filters:format(png)/pic6544250.png"
+        assert "Carcassonne is a tile placement game" in game.description
+
+    def test_play_time_properties(self, game):
+        """Test the various play time properties."""
+        assert game.min_play_time == 30
+        assert game.max_play_time == 45
+        assert game.playing_time == 45
+
+    def test_age_and_year(self, game):
+        """Test age and year published properties."""
+        assert game.min_age == 7
+        assert game.year_published == 2000
+
+    def test_alternate_names(self, game):
+        """Test the alternate_names property."""
+        alt_names = game.alternate_names
+        assert len(alt_names) == 23
+        assert "Каркассон" in alt_names
+        assert "カルカソンヌ" in alt_names
+        assert "카르카손" in alt_names
+
+    def test_suggested_player_age(self, game):
+        """Test the suggested_player_age poll parsing."""
+        suggestions = game.suggested_player_age
+        assert len(suggestions) == 12
+
+        sugs = list(suggestions)
+        assert sugs[0].age == "2"
+        assert sugs[0].votes == 2
+        assert sugs[5].age == "8"
+        assert sugs[5].votes == 359
+
+    def test_links(self, game):
+        """Test a few of the link properties."""
+        # Categories
+        categories = game.categories
+        assert len(categories) == 2
+        assert categories[0].id == 1035
+        assert categories[0].value == "Medieval"
+        assert categories[1].type == "boardgamecategory"
+
+        # Mechanics
+        mechanics = game.mechanics
+        assert len(mechanics) == 9
+        assert mechanics[0].value == "Area Majority / Influence"
+
+        # Designers
+        designers = game.designers
+        assert len(designers) == 1
+        assert designers[0].id == 398
+        assert designers[0].value == "Klaus-Jürgen Wrede"
+
+        # Publishers
+        publishers = game.publishers
+        assert len(publishers) == 35
+        assert publishers[0].value == "Hans im Glück"
+        assert any(p.value == "Rio Grande Games" for p in publishers)
