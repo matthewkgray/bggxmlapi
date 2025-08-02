@@ -317,6 +317,64 @@ class Game:
         return self._get_links("boardgamepublisher")
 
     @property
+    def statistics(self) -> Optional["Statistics"]:
+        """The game's statistics, including ratings and ranks."""
+        self._fetch_data()
+        if self._xml_data is None:
+            return None
+
+        stats_el = self._xml_data.find("./statistics/ratings")
+        if stats_el is None:
+            return None
+
+        def _get_value(element, attr_name, type_conv, default=None):
+            if element is None:
+                return default
+            val_str = element.get(attr_name)
+            if val_str is None:
+                return default
+            try:
+                return type_conv(val_str)
+            except (ValueError, TypeError):
+                # BGG API sometimes returns "Not Ranked"
+                return default
+
+        def _get_child_value(parent_el, child_name, type_conv, default=None):
+            child = parent_el.find(child_name)
+            return _get_value(child, "value", type_conv, default)
+
+        ranks = []
+        ranks_el = stats_el.find("ranks")
+        if ranks_el is not None:
+            for rank_el in ranks_el.findall("rank"):
+                ranks.append(
+                    Rank(
+                        type=rank_el.get("type"),
+                        id=rank_el.get("id"),
+                        name=rank_el.get("name"),
+                        friendly_name=rank_el.get("friendlyname"),
+                        value=_get_value(rank_el, "value", int),
+                        bayes_average=_get_value(rank_el, "bayesaverage", float),
+                    )
+                )
+
+        return Statistics(
+            users_rated=_get_child_value(stats_el, "usersrated", int, 0),
+            average=_get_child_value(stats_el, "average", float, 0.0),
+            bayes_average=_get_child_value(stats_el, "bayesaverage", float, 0.0),
+            stddev=_get_child_value(stats_el, "stddev", float, 0.0),
+            median=_get_child_value(stats_el, "median", int, 0),
+            owned=_get_child_value(stats_el, "owned", int, 0),
+            trading=_get_child_value(stats_el, "trading", int, 0),
+            wanting=_get_child_value(stats_el, "wanting", int, 0),
+            wishing=_get_child_value(stats_el, "wishing", int, 0),
+            num_comments=_get_child_value(stats_el, "numcomments", int, 0),
+            num_weights=_get_child_value(stats_el, "numweights", int, 0),
+            average_weight=_get_child_value(stats_el, "averageweight", float, 0.0),
+            ranks=ranks,
+        )
+
+    @property
     def average_rating(self) -> Optional[float]:
         """The average user rating for the game."""
         self._fetch_data()
@@ -574,6 +632,59 @@ class PlayerAgeSuggestions:
 
     def __len__(self):
         return len(self._suggestions)
+
+
+class Rank:
+    """Represents a single rank for a game."""
+
+    def __init__(self, *, type: str, id: str, name: str, friendly_name: str, value: Optional[int], bayes_average: Optional[float]):
+        self.type = type
+        self.id = id
+        self.name = name
+        self.friendly_name = friendly_name
+        self.value = value
+        self.bayes_average = bayes_average
+
+    def __repr__(self):
+        return f"Rank(type='{self.type}', name='{self.name}', value={self.value}, bayes_average={self.bayes_average})"
+
+
+class Statistics:
+    """Represents the statistics for a game."""
+
+    def __init__(
+        self,
+        *,
+        users_rated: int,
+        average: float,
+        bayes_average: float,
+        stddev: float,
+        median: int,
+        owned: int,
+        trading: int,
+        wanting: int,
+        wishing: int,
+        num_comments: int,
+        num_weights: int,
+        average_weight: float,
+        ranks: List["Rank"],
+    ):
+        self.users_rated = users_rated
+        self.average = average
+        self.bayes_average = bayes_average
+        self.stddev = stddev
+        self.median = median
+        self.owned = owned
+        self.trading = trading
+        self.wanting = wanting
+        self.wishing = wishing
+        self.num_comments = num_comments
+        self.num_weights = num_weights
+        self.average_weight = average_weight
+        self.ranks = ranks
+
+    def __repr__(self):
+        return f"Statistics(users_rated={self.users_rated}, average={self.average:.5f}, bayes_average={self.bayes_average:.5f})"
 
 
 class Link:
