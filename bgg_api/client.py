@@ -64,7 +64,21 @@ class BGGClient:
 
     def _request(self, endpoint, params):
         """Internal method to handle requests and retries for 202 status."""
-        if self.rate_limit_qps > 0:
+        url = f"{self.api_url}/{endpoint}"
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
+
+        # Before making a request, check if it's already in the cache.
+        # If it is, we don't need to apply rate limiting.
+        is_cached = False
+        if isinstance(self.session, requests_cache.CachedSession):
+            req = requests.Request("GET", url, params=params, headers=headers)
+            prepped = self.session.prepare_request(req)
+            cache_key = self.session.cache.create_key(prepped)
+            is_cached = self.session.cache.contains(key=cache_key)
+
+        if not is_cached and self.rate_limit_qps > 0:
             min_interval = self._current_backoff / self.rate_limit_qps
             now = time.monotonic()
             elapsed = now - self._last_request_time
@@ -74,10 +88,6 @@ class BGGClient:
                 time.sleep(sleep_time)
             self._last_request_time = time.monotonic()
 
-        url = f"{self.api_url}/{endpoint}"
-        headers = {}
-        if self.api_token:
-            headers["Authorization"] = f"Bearer {self.api_token}"
 
         for attempt in range(self.max_retries):
             try:

@@ -13,6 +13,17 @@ def load_fixture(name):
 import requests
 
 @pytest.fixture
+def cached_bgg_client():
+    """
+    Returns a BGGClient instance with a real, empty cache for each test.
+    """
+    # Use a temporary directory for the cache
+    client = BGGClient(cache_dir="/tmp/bgg_api_test_cache_real")
+    # Clear the cache before the test runs
+    client.session.cache.clear()
+    return client
+
+@pytest.fixture
 def bgg_client():
     # Use a non-existent cache dir for tests to avoid writing to the filesystem
     client = BGGClient(cache_dir="/tmp/bgg_api_test_cache")
@@ -412,6 +423,63 @@ def test_client_throttling(mock_monotonic, mock_sleep, bgg_client):
     # Expected interval is 0.4s. Since 0.5 > 0.4, no sleep is needed.
     mock_sleep.assert_not_called()
     assert bgg_client._last_request_time == 1000.58
+
+
+@responses.activate
+@patch("time.sleep")
+@patch("time.monotonic")
+def test_throttling_only_for_live_requests(mock_monotonic, mock_sleep, cached_bgg_client):
+    """Test that throttling is skipped for cached responses."""
+    client = cached_bgg_client
+    client.rate_limit_qps = 2
+    client.initial_backoff = 1.0
+    client._current_backoff = 1.0
+
+
+    game_id = 999
+    thing_url = f"{client.api_url}/thing"
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id}"/></items>',
+        status=200,
+    )
+
+    # --- First call (live request) ---
+    # Not throttled as it's the first.
+    mock_monotonic.return_value = 1000.0
+    client._last_request_time = 0
+    game = client.get_game(game_id)
+    game._fetch_data()
+    assert len(responses.calls) == 1
+    mock_sleep.assert_not_called()
+    assert client._last_request_time == 1000.0
+
+    # --- Second call (cached) ---
+    # Should not be throttled as it's from the cache.
+    mock_monotonic.return_value = 1000.1
+    game._fetch_data()
+    assert len(responses.calls) == 1
+    mock_sleep.assert_not_called()
+    # last_request_time should not be updated for cached requests
+    assert client._last_request_time == 1000.0
+
+    # --- Third call (new, live request) ---
+    # Should be throttled.
+    game_id_2 = 998
+    responses.add(
+        responses.GET,
+        thing_url,
+        body=f'<items><item id="{game_id_2}"/></items>',
+        status=200,
+    )
+    game2 = client.get_game(game_id_2)
+    mock_monotonic.return_value = 1000.2
+    game2._fetch_data()
+    assert len(responses.calls) == 2
+    # Interval = 1.0 / 2 = 0.5. Elapsed = 1000.2 - 1000.0 = 0.2. Sleep = 0.3
+    mock_sleep.assert_called_once_with(pytest.approx(0.3))
+    assert client._last_request_time == 1000.2
 
 
 class TestGameCarcassonne:
