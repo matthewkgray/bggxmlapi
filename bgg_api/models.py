@@ -62,6 +62,27 @@ class Game:
         self.id = int(xml_item.get("id"))
         self._xml_data = xml_item
 
+    def _get_links(self, link_type: str) -> List["Link"]:
+        """Helper to retrieve a list of Link objects of a specific type."""
+        self._fetch_data()
+        if self._xml_data is None:
+            return []
+
+        links = []
+        for link_el in self._xml_data.findall(f"./link[@type='{link_type}']"):
+            try:
+                link_id = int(link_el.get("id"))
+            except (ValueError, TypeError):
+                continue # Skip if id is not a valid integer
+
+            links.append(
+                Link(
+                    link_type=link_type,
+                    link_id=link_id,
+                    value=link_el.get("value", "N/A"),
+                )
+            )
+        return links
 
     @property
     def name(self) -> str:
@@ -87,6 +108,17 @@ class Game:
         return "N/A"
 
     @property
+    def alternate_names(self) -> List[str]:
+        """A list of the game's alternate names."""
+        self._fetch_data()
+        if self._xml_data is None: return []
+        return [
+            name_el.get("value")
+            for name_el in self._xml_data.findall("./name[@type='alternate']")
+            if name_el.get("value")
+        ]
+
+    @property
     def year_published(self) -> Optional[int]:
         """The year the game was published."""
         self._fetch_data()
@@ -103,6 +135,70 @@ class Game:
         if year_element.text and year_element.text.isdigit():
             return int(year_element.text)
 
+        return None
+
+    @property
+    def thumbnail(self) -> Optional[str]:
+        """The URL for the game's thumbnail image."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("thumbnail")
+        return el.text if el is not None else None
+
+    @property
+    def image(self) -> Optional[str]:
+        """The URL for the game's main image."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("image")
+        return el.text if el is not None else None
+
+    @property
+    def description(self) -> Optional[str]:
+        """The description of the game."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("description")
+        return el.text if el is not None else None
+
+    @property
+    def min_play_time(self) -> Optional[int]:
+        """The minimum playing time in minutes."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("minplaytime")
+        if el is not None and el.get("value"):
+            return int(el.get("value"))
+        return None
+
+    @property
+    def max_play_time(self) -> Optional[int]:
+        """The maximum playing time in minutes."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("maxplaytime")
+        if el is not None and el.get("value"):
+            return int(el.get("value"))
+        return None
+
+    @property
+    def playing_time(self) -> Optional[int]:
+        """The playing time in minutes."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("playingtime")
+        if el is not None and el.get("value"):
+            return int(el.get("value"))
+        return None
+
+    @property
+    def min_age(self) -> Optional[int]:
+        """The minimum recommended player age."""
+        self._fetch_data()
+        if self._xml_data is None: return None
+        el = self._xml_data.find("minage")
+        if el is not None and el.get("value"):
+            return int(el.get("value"))
         return None
 
     @property
@@ -137,6 +233,88 @@ class Game:
                     )
                 )
         return PlayerSuggestions(suggestions)
+
+    @property
+    def suggested_player_age(self) -> "PlayerAgeSuggestions":
+        """The user-suggested player age for the game."""
+        self._fetch_data()
+        if self._xml_data is None:
+            return PlayerAgeSuggestions([])
+
+        suggestions = []
+        poll = self._xml_data.find("./poll[@name='suggested_playerage']")
+        if poll is not None:
+            results_el = poll.find("results")
+            if results_el is not None:
+                for result_el in results_el.findall("result"):
+                    age = result_el.get("value", "N/A")
+                    try:
+                        numvotes = int(result_el.get("numvotes", 0))
+                    except (ValueError, TypeError):
+                        numvotes = 0
+
+                    suggestions.append(
+                        PlayerAgeSuggestion(
+                            age=age,
+                            votes=numvotes,
+                        )
+                    )
+        return PlayerAgeSuggestions(suggestions)
+
+    @property
+    def categories(self) -> List["Link"]:
+        """List of game categories."""
+        return self._get_links("boardgamecategory")
+
+    @property
+    def mechanics(self) -> List["Link"]:
+        """List of game mechanics."""
+        return self._get_links("boardgamemechanic")
+
+    @property
+    def families(self) -> List["Link"]:
+        """List of game families."""
+        return self._get_links("boardgamefamily")
+
+    @property
+    def expansions(self) -> List["Link"]:
+        """List of game expansions."""
+        return self._get_links("boardgameexpansion")
+
+    @property
+    def accessories(self) -> List["Link"]:
+        """List of game accessories."""
+        return self._get_links("boardgameaccessory")
+
+    @property
+    def integrations(self) -> List["Link"]:
+        """List of game integrations."""
+        return self._get_links("boardgameintegration")
+
+    @property
+    def compilations(self) -> List["Link"]:
+        """List of game compilations."""
+        return self._get_links("boardgamecompilation")
+
+    @property
+    def implementations(self) -> List["Link"]:
+        """List of game implementations."""
+        return self._get_links("boardgameimplementation")
+
+    @property
+    def designers(self) -> List["Link"]:
+        """List of game designers."""
+        return self._get_links("boardgamedesigner")
+
+    @property
+    def artists(self) -> List["Link"]:
+        """List of game artists."""
+        return self._get_links("boardgameartist")
+
+    @property
+    def publishers(self) -> List["Link"]:
+        """List of game publishers."""
+        return self._get_links("boardgamepublisher")
 
     @property
     def average_rating(self) -> Optional[float]:
@@ -370,6 +548,44 @@ class Rating:
 
     def __repr__(self):
         return f"Rating(username='{self.username}', rating={self.rating})"
+
+
+class PlayerAgeSuggestion:
+    """Represents the poll results for a specific player age."""
+
+    def __init__(self, age: str, votes: int):
+        self.age = age
+        self.votes = votes
+
+    def __repr__(self):
+        return f"PlayerAgeSuggestion(age='{self.age}', votes={self.votes})"
+
+
+class PlayerAgeSuggestions:
+    """
+    A container for a game's player age suggestions poll results.
+    """
+
+    def __init__(self, suggestions: List[PlayerAgeSuggestion]):
+        self._suggestions = suggestions
+
+    def __iter__(self):
+        return iter(self._suggestions)
+
+    def __len__(self):
+        return len(self._suggestions)
+
+
+class Link:
+    """A generic link to another item on BGG."""
+
+    def __init__(self, link_type: str, link_id: int, value: str):
+        self.type = link_type
+        self.id = link_id
+        self.value = value
+
+    def __repr__(self):
+        return f"Link(type='{self.type}', id={self.id}, value='{self.value}')"
 
 
 class PlayerSuggestion:
