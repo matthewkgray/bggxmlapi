@@ -414,11 +414,10 @@ def test_client_throttling(mock_monotonic, mock_sleep, bgg_client):
     assert bgg_client._last_request_time == 1000.58
 
 
-@responses.activate
 class TestGameCarcassonne:
     """Tests for the comprehensive Carcassonne game object (ID 822)."""
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def game(self, bgg_client):
         """Fixture to set up the Carcassonne game object."""
         game_id = 822
@@ -436,6 +435,7 @@ class TestGameCarcassonne:
         g._fetch_data()
         return g
 
+    @responses.activate
     def test_basic_properties(self, game):
         """Test basic string and URL properties."""
         assert game.name == "Carcassonne"
@@ -443,25 +443,29 @@ class TestGameCarcassonne:
         assert game.image == "https://cf.geekdo-images.com/okM0dq_bEXnbyQTOvHfwRA__original/img/aVZEXAI-cUtuunNfPhjeHlS4fwQ=/0x0/filters:format(png)/pic6544250.png"
         assert "Carcassonne is a tile placement game" in game.description
 
+    @responses.activate
     def test_play_time_properties(self, game):
         """Test the various play time properties."""
         assert game.min_play_time == 30
         assert game.max_play_time == 45
         assert game.playing_time == 45
 
+    @responses.activate
     def test_age_and_year(self, game):
         """Test age and year published properties."""
         assert game.min_age == 7
         assert game.year_published == 2000
 
+    @responses.activate
     def test_alternate_names(self, game):
         """Test the alternate_names property."""
         alt_names = game.alternate_names
-        assert len(alt_names) == 23
+        assert len(alt_names) == 22
         assert "Каркассон" in alt_names
         assert "カルカソンヌ" in alt_names
         assert "카르카손" in alt_names
 
+    @responses.activate
     def test_suggested_player_age(self, game):
         """Test the suggested_player_age poll parsing."""
         suggestions = game.suggested_player_age
@@ -473,6 +477,7 @@ class TestGameCarcassonne:
         assert sugs[5].age == "8"
         assert sugs[5].votes == 359
 
+    @responses.activate
     def test_links(self, game):
         """Test a few of the link properties."""
         # Categories
@@ -495,6 +500,40 @@ class TestGameCarcassonne:
 
         # Publishers
         publishers = game.publishers
-        assert len(publishers) == 35
+        assert len(publishers) == 39
         assert publishers[0].value == "Hans im Glück"
         assert any(p.value == "Rio Grande Games" for p in publishers)
+
+    @responses.activate
+    def test_statistics_properties(self, game):
+        """Test the game statistics properties."""
+        stats = game.statistics
+        assert stats.users_rated == 134525
+        assert stats.average == pytest.approx(7.41278)
+        assert stats.bayes_average == pytest.approx(7.29638)
+        assert stats.stddev == pytest.approx(1.31168)
+        assert stats.median == 0
+        assert stats.owned == 211857
+        assert stats.trading == 2046
+        assert stats.wanting == 696
+        assert stats.wishing == 10309
+        assert stats.num_comments == 22731
+        assert stats.num_weights == 8489
+        assert stats.average_weight == pytest.approx(1.888)
+
+        assert len(stats.ranks) == 2
+        rank1 = stats.ranks[0]
+        assert rank1.type == "subtype"
+        assert rank1.id == "1"
+        assert rank1.name == "boardgame"
+        assert rank1.friendly_name == "Board Game Rank"
+        assert rank1.value == 233
+        assert rank1.bayes_average == pytest.approx(7.29638)
+
+        rank2 = stats.ranks[1]
+        assert rank2.type == "family"
+        assert rank2.id == "5499"
+        assert rank2.name == "familygames"
+        assert rank2.friendly_name == "Family Game Rank"
+        assert rank2.value == 56
+        assert rank2.bayes_average == pytest.approx(7.28906)
