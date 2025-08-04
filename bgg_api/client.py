@@ -13,6 +13,10 @@ from .exceptions import BGGNetworkError, BGGAPIError
 
 log = logging.getLogger(__name__)
 
+# Global cache for session objects
+_sessions = {}
+
+
 class BGGClient:
     """
     The main entry point for interacting with the BGG API.
@@ -22,7 +26,7 @@ class BGGClient:
     def __init__(
         self,
         cache_dir: str = "~/.bgg_cache",
-        cache_ttl: int = 3600,
+        cache_ttl: int = 604800,  # 7 days
         api_token: Optional[str] = None,
         max_retries: int = 10,
         initial_backoff: int = 2,
@@ -44,14 +48,22 @@ class BGGClient:
             rate_limit_qps (int): The number of queries per second to throttle requests to.
         """
         cache_path = Path(cache_dir).expanduser()
-        self.session = requests_cache.CachedSession(
-            backend="filesystem",
-            cache_name=str(cache_path),
-            expire_after=cache_ttl,
-            allowable_methods=('GET', 'POST'),
-            stale_if_error=True,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
+        cache_key = str(cache_path)
+
+        if cache_key not in _sessions:
+            log.debug(f"Creating new cached session for cache: {cache_key}")
+            _sessions[cache_key] = requests_cache.CachedSession(
+                backend="filesystem",
+                cache_name=cache_key,
+                expire_after=cache_ttl,
+                allowable_methods=('GET', 'POST'),
+                stale_if_error=True,
+                status_forcelist=[429, 500, 502, 503, 504],
+            )
+        else:
+            log.debug(f"Re-using existing cached session for cache: {cache_key}")
+
+        self.session = _sessions[cache_key]
         self.api_token = api_token
         self.api_url = "https://www.boardgamegeek.com/xmlapi2"
         self.max_retries = max_retries
