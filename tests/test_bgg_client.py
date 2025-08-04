@@ -543,7 +543,7 @@ class TestGameCarcassonne:
         assert sugs[0].age == "2"
         assert sugs[0].votes == 2
         assert sugs[5].age == "8"
-        assert sugs[5].votes == 359
+        assert sugs[5].votes == 360
 
     @responses.activate
     def test_links(self, game):
@@ -576,17 +576,17 @@ class TestGameCarcassonne:
     def test_statistics_properties(self, game):
         """Test the game statistics properties."""
         stats = game.statistics
-        assert stats.users_rated == 134525
-        assert stats.average == pytest.approx(7.41278)
-        assert stats.bayes_average == pytest.approx(7.29638)
-        assert stats.stddev == pytest.approx(1.31168)
+        assert stats.users_rated == 134561
+        assert stats.average == pytest.approx(7.41263)
+        assert stats.bayes_average == pytest.approx(7.29634)
+        assert stats.stddev == pytest.approx(1.312)
         assert stats.median == 0
-        assert stats.owned == 211857
-        assert stats.trading == 2046
-        assert stats.wanting == 696
-        assert stats.wishing == 10309
-        assert stats.num_comments == 22731
-        assert stats.num_weights == 8489
+        assert stats.owned == 211938
+        assert stats.trading == 2045
+        assert stats.wanting == 697
+        assert stats.wishing == 10319
+        assert stats.num_comments == 22734
+        assert stats.num_weights == 8492
         assert stats.average_weight == pytest.approx(1.888)
 
         assert len(stats.ranks) == 2
@@ -596,7 +596,7 @@ class TestGameCarcassonne:
         assert rank1.name == "boardgame"
         assert rank1.friendly_name == "Board Game Rank"
         assert rank1.value == 233
-        assert rank1.bayes_average == pytest.approx(7.29638)
+        assert rank1.bayes_average == pytest.approx(7.29634)
 
         rank2 = stats.ranks[1]
         assert rank2.type == "family"
@@ -604,4 +604,4 @@ class TestGameCarcassonne:
         assert rank2.name == "familygames"
         assert rank2.friendly_name == "Family Game Rank"
         assert rank2.value == 56
-        assert rank2.bayes_average == pytest.approx(7.28906)
+        assert rank2.bayes_average == pytest.approx(7.289)
