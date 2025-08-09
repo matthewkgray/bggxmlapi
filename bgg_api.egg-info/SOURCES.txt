@@ -5,9 +5,11 @@ bgg_api/__init__.py
 bgg_api/client.py
 bgg_api/exceptions.py
 bgg_api/models.py
+bgg_api/snapshot.py
 bgg_api.egg-info/PKG-INFO
 bgg_api.egg-info/SOURCES.txt
 bgg_api.egg-info/dependency_links.txt
 bgg_api.egg-info/requires.txt
 bgg_api.egg-info/top_level.txt
 tests/test_bgg_client.py
+tests/test_snapshot.py
