@@ -9,6 +9,7 @@ import logging
 import requests_cache
 
 from .models import Game, User
+from .snapshot import RankSnapshot
 from .exceptions import BGGNetworkError, BGGAPIError
 
 log = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class BGGClient:
         self.session = _sessions[cache_key]
         self.api_token = api_token
         self.api_url = "https://www.boardgamegeek.com/xmlapi2"
+        self.snapshot_url = "https://raw.githubusercontent.com/beefsack/bgg-ranking-historicals/master"
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
         self.backoff_factor = backoff_factor
@@ -213,6 +215,29 @@ class BGGClient:
             game.ratings.fetch_more(num_pages=max_rating_pages)
         return game
 
+    def get_rank_snapshot(self, date_str: str) -> RankSnapshot:
+        """
+        Fetches a snapshot of the BGG rankings for a specific date.
+
+        This uses the historical data from:
+        https://github.com/beefsack/bgg-ranking-historicals
+
+        Args:
+            date_str (str): The date of the snapshot to fetch, in 'YYYY-MM-DD' format.
+
+        Returns:
+            RankSnapshot: An object containing the parsed ranking data.
+
+        Raises:
+            BGGNetworkError: If there's a problem fetching the data.
+        """
+        url = f"{self.snapshot_url}/{date_str}.csv"
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            return RankSnapshot(response.text)
+        except requests.exceptions.RequestException as e:
+            raise BGGNetworkError(f"Network error fetching snapshot from {url}: {e}") from e
 
     def search(self, query: str) -> List[Game]:
         """
