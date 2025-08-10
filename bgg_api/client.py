@@ -193,7 +193,13 @@ class BGGClient:
         """
         return User(username=username, client=self)
 
-    def get_game(self, game_id: int, max_rating_pages: int = 0) -> Game:
+    def get_game(
+        self,
+        game_id: int,
+        max_rating_pages: int = 0,
+        fetch_all_ratings: bool = False,
+        randomize_ratings: bool = True,
+    ) -> Game:
         """
         Retrieves a board game by its BGG ID.
 
@@ -203,14 +209,22 @@ class BGGClient:
         Args:
             game_id (int): The BGG ID of the game.
             max_rating_pages (int): The number of ratings pages to pre-fetch. Defaults to 0 (lazy).
+            fetch_all_ratings (bool): If True, pre-fetches all pages of ratings.
+            randomize_ratings (bool): If True, fetches rating pages in a random (but seeded) order.
 
         Returns:
             Game: A Game object representing the board game.
         """
         game = Game(game_id=game_id, client=self)
-        if max_rating_pages > 0:
+
+        if fetch_all_ratings:
+            # Fetch all ratings, randomization is handled by the model's fetch_all
+            game.ratings.fetch_all()
+        elif max_rating_pages > 0:
             # This will fetch the first N pages of ratings
-            game.ratings.fetch_more(num_pages=max_rating_pages)
+            game.ratings.fetch_more(
+                num_pages=max_rating_pages, randomize=randomize_ratings
+            )
         return game
 
 
