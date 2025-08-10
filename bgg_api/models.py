@@ -1,5 +1,6 @@
 # bgg_api/models.py
 from __future__ import annotations
+import random
 from typing import TYPE_CHECKING, List, Optional
 from lxml import etree
 import logging
@@ -38,15 +39,13 @@ class Game:
 
     def _set_xml_data(self, xml_data: etree._Element):
         """Helper to set the xml data for the game from a 'thing' call."""
-        if self._xml_data is not None:
-            return # Data already set
+        if self._xml_data is None:
+            item = xml_data.find(f".//item[@id='{self.id}']")
 
-        item = xml_data.find(f".//item[@id='{self.id}']")
+            if item is None:
+                raise BGGAPIError(f"Game with id {self.id} not found in provided XML.")
 
-        if item is None:
-            raise BGGAPIError(f"Game with id {self.id} not found in provided XML.")
-
-        self._xml_data = item
+            self._xml_data = item
 
     def _set_xml_data_from_collection_item(self, xml_item: etree._Element):
         """Helper to set xml data from a '/collection' call's item element."""
@@ -513,12 +512,14 @@ class Ratings:
     """
     A container for a game's ratings, handling the logic for paginated fetching.
     """
-    def __init__(self, game: Game):
+
+    def __init__(self, game: "Game"):
         self._game = game
         self._ratings: List[Rating] = []
-        self._pages_fetched = 0
+        self._pages_fetched: set[int] = set()
         self._total_pages: Optional[int] = None
         self._total_ratings: Optional[int] = None
+        self._all_page_indices: Optional[List[int]] = None
 
     def __iter__(self):
         return iter(self._ratings)
@@ -532,69 +533,133 @@ class Ratings:
     def all_fetched(self) -> bool:
         """Returns True if all ratings have been fetched."""
         if self._total_pages is None:
-            return False # We don't know yet
-        return self._pages_fetched >= self._total_pages
+            return False  # We don't know yet
+        return len(self._pages_fetched) >= self._total_pages
 
-    def fetch_more(self, num_pages: int = 1):
+    def fetch_all(self):
+        """Fetches all pages of ratings from the BGG API."""
+        if self.all_fetched:
+            return
+
+        # This will trigger the first fetch and populate total_pages
+        if self._total_pages is None:
+            self._fetch_and_parse_page(1)
+            if self.all_fetched:
+                return
+
+        # Now that we know the total, fetch the rest
+        if self._total_pages is not None:
+            # The page indices will be created sequentially here
+            self.fetch_more(num_pages=self._total_pages)
+
+    def fetch_more(self, num_pages: int = 1, randomize: bool = False):
         """
         Fetches more pages of ratings from the BGG API.
 
         Args:
             num_pages (int): The number of additional pages to fetch.
+            randomize (bool): If True, fetch pages in a random, seeded order.
         """
+        log.debug(f"fetch_more called for game {self._game.id} with num_pages={num_pages}, randomize={randomize}")
+        # We can't do anything if we have fetched everything
         if self.all_fetched:
-            log.debug(f"All ratings already fetched for game {self._game.id}. Skipping fetch.")
+            log.debug(
+                f"All ratings already fetched for game {self._game.id}. Skipping fetch."
+            )
             return
 
-        start_page = self._pages_fetched + 1
-        end_page = start_page + num_pages
-        if self._total_pages is not None:
-            end_page = min(end_page, self._total_pages + 1)
-
-        for page_num in range(start_page, end_page):
+        # Step 1: If we don't know the total number of pages, fetch page 1 to find out.
+        pages_fetched_this_run = 0
+        if self._total_pages is None:
+            log.debug(f"Total pages unknown for game {self._game.id}, fetching page 1.")
+            self._fetch_and_parse_page(1)
+            pages_fetched_this_run += 1
+            # If the first fetch got everything, we can stop.
             if self.all_fetched:
-                break
+                return
 
-            log.debug(f"Fetching ratings page {page_num} for game {self._game.id}")
-            response_xml = self._game._client._get_game_ratings_page(
-                self._game.id, page=page_num
+        # Step 2: If this is the first real fetch, create the list of page indices.
+        if self._all_page_indices is None and self._total_pages is not None:
+            self._all_page_indices = list(range(1, self._total_pages + 1))
+            if randomize:
+                # Seed the shuffle with the game ID for deterministic randomness
+                r = random.Random(self._game.id)
+                r.shuffle(self._all_page_indices)
+
+        # Step 3: Determine which pages to fetch next.
+        pages_to_fetch = []
+        if self._all_page_indices:
+            # Find the next `num_pages` that haven't been fetched yet.
+            pages_to_try = (
+                p for p in self._all_page_indices if p not in self._pages_fetched
             )
+            for _ in range(num_pages - pages_fetched_this_run):
+                try:
+                    pages_to_fetch.append(next(pages_to_try))
+                except StopIteration:
+                    break  # No more pages left to fetch
 
-            self._game._set_xml_data(response_xml)
+        # Step 4: Fetch and parse the selected pages.
+        for page_num in pages_to_fetch:
+            self._fetch_and_parse_page(page_num)
 
-            comments_element = response_xml.find(f".//item[@id='{self._game.id}']/comments")
-            if comments_element is None:
+    def _fetch_and_parse_page(self, page_num: int):
+        """Internal helper to fetch and parse a single page of ratings."""
+        log.debug(f"_fetch_and_parse_page called for game {self._game.id}, page {page_num}")
+        # This check is important because the initial metadata fetch might have
+        # already processed the page we are about to fetch.
+        if page_num in self._pages_fetched:
+            log.debug(f"Page {page_num} already fetched for game {self._game.id}, skipping.")
+            return
+
+        log.debug(f"Fetching ratings page {page_num} for game {self._game.id}")
+        response_xml = self._game._client._get_game_ratings_page(
+            self._game.id, page=page_num
+        )
+
+        comments_element = response_xml.find(
+            f".//item[@id='{self._game.id}']/comments"
+        )
+        if comments_element is None:
+            # This can happen on an empty page or if there are no ratings.
+            if self._total_pages is None:
                 self._total_pages = 0
                 self._total_ratings = 0
-                break
+            self._pages_fetched.add(page_num)
+            return
 
-            if self._total_pages is None:
-                self._total_ratings = int(comments_element.get("totalitems", 0))
-                page_size = int(comments_element.get("pagesize", 100))
-                self._total_pages = math.ceil(self._total_ratings / page_size) if page_size > 0 else 0
+        # On the first successful fetch, populate the total page/item counts
+        if self._total_pages is None:
+            self._total_ratings = int(comments_element.get("totalitems", 0))
+            page_size = int(comments_element.get("pagesize", 100))
+            self._total_pages = (
+                math.ceil(self._total_ratings / page_size) if page_size > 0 else 0
+            )
 
-            new_ratings = []
-            for comment_el in comments_element.findall("comment"):
-                rating_val = comment_el.get("rating")
-                if not rating_val:
-                    continue
+        new_ratings = []
+        for comment_el in comments_element.findall("comment"):
+            rating_val = comment_el.get("rating")
+            if not rating_val:
+                continue
 
-                try:
-                    rating_float = float(rating_val)
-                except (ValueError, TypeError):
-                    log.warning(f"Could not parse rating '{rating_val}' for game {self._game.id}. Skipping.")
-                    continue
-
-                new_ratings.append(
-                    Rating(
-                        username=comment_el.get("username", "N/A"),
-                        rating=rating_float,
-                        comment=comment_el.get("value", ""),
-                    )
+            try:
+                rating_float = float(rating_val)
+            except (ValueError, TypeError):
+                log.warning(
+                    f"Could not parse rating '{rating_val}' for game {self._game.id}. Skipping."
                 )
+                continue
 
-            self._ratings.extend(new_ratings)
-            self._pages_fetched = page_num
+            new_ratings.append(
+                Rating(
+                    username=comment_el.get("username", "N/A"),
+                    rating=rating_float,
+                    comment=comment_el.get("value", ""),
+                )
+            )
+
+        self._ratings.extend(new_ratings)
+        self._pages_fetched.add(page_num)
 
 
 class Rating:
@@ -692,11 +757,11 @@ class Link:
 
     def __init__(self, link_type: str, link_id: int, value: str):
         self.type = link_type
-        self.id = link_id
+        self.link_id = link_id
         self.value = value
 
     def __repr__(self):
-        return f"Link(type='{self.type}', id={self.id}, value='{self.value}')"
+        return f"Link(type='{self.type}', id={self.link_id}, value='{self.value}')"
 
 
 class PlayerSuggestion:

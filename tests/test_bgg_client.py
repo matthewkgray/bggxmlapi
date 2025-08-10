@@ -10,6 +10,25 @@ from bgg_api.exceptions import BGGAPIError, BGGNetworkError
 def load_fixture(name):
     return (Path(__file__).parent / "fixtures" / name).read_text()
 
+def mock_ratings_response(game_id, page, pagesize, totalitems):
+    """Generates a mock XML response for a ratings page."""
+    comments = ""
+    start_user = (page - 1) * pagesize
+    for i in range(pagesize):
+        user_num = start_user + i
+        if user_num < totalitems:
+            comments += f'<comment username="user{user_num}" rating="{(user_num % 10) + 1}" value="comment {user_num}"/>'
+
+    return f"""
+    <items>
+        <item id="{game_id}">
+            <comments page="{page}" pagesize="{pagesize}" totalitems="{totalitems}">
+                {comments}
+            </comments>
+        </item>
+    </items>
+    """
+
 import requests
 
 @pytest.fixture
@@ -551,7 +570,7 @@ class TestGameCarcassonne:
         # Categories
         categories = game.categories
         assert len(categories) == 2
-        assert categories[0].id == 1035
+        assert categories[0].link_id == 1035
         assert categories[0].value == "Medieval"
         assert categories[1].type == "boardgamecategory"
 
@@ -563,7 +582,7 @@ class TestGameCarcassonne:
         # Designers
         designers = game.designers
         assert len(designers) == 1
-        assert designers[0].id == 398
+        assert designers[0].link_id == 398
         assert designers[0].value == "Klaus-Jürgen Wrede"
 
         # Publishers
@@ -605,3 +624,148 @@ class TestGameCarcassonne:
         assert rank2.friendly_name == "Family Game Rank"
         assert rank2.value == 56
         assert rank2.bayes_average == pytest.approx(7.289)
+
+
+class TestRatingsFetching:
+    """Tests for the new ratings fetching functionality."""
+
+    GAME_ID = 12345
+    TOTAL_RATINGS = 250 # Should result in 3 pages (100, 100, 50)
+    TOTAL_PAGES = 3
+    PAGE_SIZE = 100
+
+    def _get_ratings_calls(self, calls):
+        """Helper to filter for ratings API calls."""
+        return [
+            c for c in calls if "ratingcomments" in c.request.params
+        ]
+
+    @responses.activate
+    def test_fetch_all_ratings(self, bgg_client):
+        """Test that `fetch_all_ratings=True` fetches all rating pages."""
+        mock_url = f"{bgg_client.api_url}/thing"
+
+        # Mock the initial game data fetch
+        responses.add(
+            responses.GET,
+            mock_url,
+            body=f'<items><item id="{self.GAME_ID}"/></items>',
+            status=200,
+            match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "stats": "1"})]
+        )
+
+        # Mock all pages
+        for i in range(1, self.TOTAL_PAGES + 1):
+            responses.add(
+                responses.GET,
+                mock_url,
+                body=mock_ratings_response(self.GAME_ID, i, self.PAGE_SIZE, self.TOTAL_RATINGS),
+                status=200,
+                match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "ratingcomments": "1", "page": str(i), "pagesize": str(self.PAGE_SIZE)})]
+            )
+
+        game = bgg_client.get_game(self.GAME_ID, fetch_all_ratings=True)
+
+        ratings_calls = self._get_ratings_calls(responses.calls)
+        assert len(ratings_calls) == self.TOTAL_PAGES
+        assert len(game.ratings._ratings) == self.TOTAL_RATINGS
+        assert game.ratings.all_fetched is True
+
+    @responses.activate
+    def test_fetch_randomized_ratings(self, bgg_client):
+        """Test that `randomize_ratings=True` fetches a random subset of pages."""
+        TOTAL_PAGES_RANDOM = 5
+        TOTAL_RATINGS_RANDOM = 450
+        PAGES_TO_FETCH = 3
+        mock_url = f"{bgg_client.api_url}/thing"
+
+        # Mock the initial game data fetch
+        responses.add(
+            responses.GET,
+            mock_url,
+            body=f'<items><item id="{self.GAME_ID}"/></items>',
+            status=200,
+            match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "stats": "1"})]
+        )
+
+        for i in range(1, TOTAL_PAGES_RANDOM + 1):
+             responses.add(
+                responses.GET,
+                mock_url,
+                body=mock_ratings_response(self.GAME_ID, i, self.PAGE_SIZE, TOTAL_RATINGS_RANDOM),
+                status=200,
+                match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "ratingcomments": "1", "page": str(i), "pagesize": str(self.PAGE_SIZE)})]
+            )
+
+        game = bgg_client.get_game(self.GAME_ID, max_rating_pages=PAGES_TO_FETCH, randomize_ratings=True)
+
+        ratings_calls = self._get_ratings_calls(responses.calls)
+        assert len(ratings_calls) == PAGES_TO_FETCH
+
+        requested_pages = {int(call.request.params["page"]) for call in ratings_calls}
+        # For game_id=12345, seeded shuffle of [1,2,3,4,5] is [3, 5, 1, 2, 4]
+        # First call is always page 1 for metadata.
+        # Then we take the next 2 pages from the shuffled list that are not page 1.
+        # Those are 3 and 5.
+        assert requested_pages == {1, 3, 5}
+        assert len(game.ratings._ratings) == 250
+
+
+    @responses.activate
+    def test_randomized_ratings_are_deterministic(self, bgg_client):
+        """Test that randomized page fetching is deterministic."""
+        TOTAL_PAGES_RANDOM = 5
+        TOTAL_RATINGS_RANDOM = 450
+        PAGES_TO_FETCH = 3
+        mock_url = f"{bgg_client.api_url}/thing"
+
+        # Mock the initial game data fetch
+        responses.add(
+            responses.GET,
+            mock_url,
+            body=f'<items><item id="{self.GAME_ID}"/></items>',
+            status=200,
+            match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "stats": "1"})]
+        )
+
+        for i in range(1, TOTAL_PAGES_RANDOM + 1):
+             responses.add(
+                responses.GET,
+                mock_url,
+                body=mock_ratings_response(self.GAME_ID, i, self.PAGE_SIZE, TOTAL_RATINGS_RANDOM),
+                status=200,
+                match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "ratingcomments": "1", "page": str(i), "pagesize": str(self.PAGE_SIZE)})]
+            )
+
+        # Client 1
+        bgg_client.get_game(self.GAME_ID, max_rating_pages=PAGES_TO_FETCH, randomize_ratings=True)
+        ratings_calls1 = self._get_ratings_calls(responses.calls)
+        requested_pages1 = sorted([int(call.request.params["page"]) for call in ratings_calls1])
+
+        # Reset responses for the next client
+        responses.reset()
+
+        # Re-add mocks for client 2
+        responses.add(
+            responses.GET,
+            mock_url,
+            body=f'<items><item id="{self.GAME_ID}"/></items>',
+            status=200,
+            match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "stats": "1"})]
+        )
+        for i in range(1, TOTAL_PAGES_RANDOM + 1):
+             responses.add(
+                responses.GET,
+                mock_url,
+                body=mock_ratings_response(self.GAME_ID, i, self.PAGE_SIZE, TOTAL_RATINGS_RANDOM),
+                status=200,
+                match=[responses.matchers.query_param_matcher({"id": str(self.GAME_ID), "ratingcomments": "1", "page": str(i), "pagesize": str(self.PAGE_SIZE)})]
+            )
+
+        # Client 2
+        bgg_client.get_game(self.GAME_ID, max_rating_pages=PAGES_TO_FETCH, randomize_ratings=True)
+        ratings_calls2 = self._get_ratings_calls(responses.calls)
+        requested_pages2 = sorted([int(call.request.params["page"]) for call in ratings_calls2])
+
+        assert requested_pages1 == requested_pages2
+        assert requested_pages1 == [1, 3, 5]
