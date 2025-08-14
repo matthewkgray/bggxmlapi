@@ -560,36 +560,21 @@ class Ratings:
             num_pages (int): The number of additional pages to fetch.
             randomize (bool): If True, fetch pages in a random, seeded order.
         """
-        log.debug(f"fetch_more called for game {self._game.id} with num_pages={num_pages}, randomize={randomize}")
-        # We can't do anything if we have fetched everything
-        if self.all_fetched:
-            log.debug(
-                f"All ratings already fetched for game {self._game.id}. Skipping fetch."
-            )
-            return
-
-        # Step 1: If we don't know the total number of pages, fetch page 1 to find out.
         pages_fetched_this_run = 0
         if self._total_pages is None:
-            log.debug(f"Total pages unknown for game {self._game.id}, fetching page 1.")
             self._fetch_and_parse_page(1)
             pages_fetched_this_run += 1
-            # If the first fetch got everything, we can stop.
             if self.all_fetched:
                 return
 
-        # Step 2: If this is the first real fetch, create the list of page indices.
         if self._all_page_indices is None and self._total_pages is not None:
             self._all_page_indices = list(range(1, self._total_pages + 1))
             if randomize:
-                # Seed the shuffle with the game ID for deterministic randomness
                 r = random.Random(self._game.id)
                 r.shuffle(self._all_page_indices)
 
-        # Step 3: Determine which pages to fetch next.
         pages_to_fetch = []
         if self._all_page_indices:
-            # Find the next `num_pages` that haven't been fetched yet.
             pages_to_try = (
                 p for p in self._all_page_indices if p not in self._pages_fetched
             )
@@ -597,22 +582,16 @@ class Ratings:
                 try:
                     pages_to_fetch.append(next(pages_to_try))
                 except StopIteration:
-                    break  # No more pages left to fetch
+                    break
 
-        # Step 4: Fetch and parse the selected pages.
         for page_num in pages_to_fetch:
             self._fetch_and_parse_page(page_num)
 
     def _fetch_and_parse_page(self, page_num: int):
         """Internal helper to fetch and parse a single page of ratings."""
-        log.debug(f"_fetch_and_parse_page called for game {self._game.id}, page {page_num}")
-        # This check is important because the initial metadata fetch might have
-        # already processed the page we are about to fetch.
         if page_num in self._pages_fetched:
-            log.debug(f"Page {page_num} already fetched for game {self._game.id}, skipping.")
             return
 
-        log.debug(f"Fetching ratings page {page_num} for game {self._game.id}")
         response_xml = self._game._client._get_game_ratings_page(
             self._game.id, page=page_num
         )
@@ -621,14 +600,12 @@ class Ratings:
             f".//item[@id='{self._game.id}']/comments"
         )
         if comments_element is None:
-            # This can happen on an empty page or if there are no ratings.
             if self._total_pages is None:
                 self._total_pages = 0
                 self._total_ratings = 0
             self._pages_fetched.add(page_num)
             return
 
-        # On the first successful fetch, populate the total page/item counts
         if self._total_pages is None:
             self._total_ratings = int(comments_element.get("totalitems", 0))
             page_size = int(comments_element.get("pagesize", 100))
@@ -704,14 +681,14 @@ class Rank:
 
     def __init__(self, *, type: str, id: str, name: str, friendly_name: str, value: Optional[int], bayes_average: Optional[float]):
         self.type = type
-        self.id = id
+        self.link_id = id
         self.name = name
         self.friendly_name = friendly_name
         self.value = value
         self.bayes_average = bayes_average
 
     def __repr__(self):
-        return f"Rank(type='{self.type}', name='{self.name}', value={self.value}, bayes_average={self.bayes_average})"
+        return f"Rank(type='{self.type}', id={self.link_id}, value={self.value}, bayes_average={self.bayes_average})"
 
 
 class Statistics:
