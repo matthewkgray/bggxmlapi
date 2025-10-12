@@ -111,7 +111,8 @@ class Game:
     def alternate_names(self) -> List[str]:
         """A list of the game's alternate names."""
         self._fetch_data()
-        if self._xml_data is None: return []
+        if self._xml_data is None:
+            return []
         return [
             name_el.get("value")
             for name_el in self._xml_data.findall("./name[@type='alternate']")
@@ -138,10 +139,29 @@ class Game:
         return None
 
     @property
+    def user_rating(self) -> Optional[float]:
+        """The user's rating for the game, if it's in their collection."""
+        self._fetch_data()
+        if self._xml_data is None:
+            return None
+
+        # Path for /collection results
+        rating_el = self._xml_data.find("./stats/rating")
+        if rating_el is not None:
+            rating_val = rating_el.get("value")
+            if rating_val and rating_val != "N/A":
+                try:
+                    return float(rating_val)
+                except (ValueError, TypeError):
+                    return None
+        return None
+
+    @property
     def thumbnail(self) -> Optional[str]:
         """The URL for the game's thumbnail image."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("thumbnail")
         return el.text if el is not None else None
 
@@ -149,7 +169,8 @@ class Game:
     def image(self) -> Optional[str]:
         """The URL for the game's main image."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("image")
         return el.text if el is not None else None
 
@@ -157,7 +178,8 @@ class Game:
     def description(self) -> Optional[str]:
         """The description of the game."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("description")
         return el.text if el is not None else None
 
@@ -165,7 +187,8 @@ class Game:
     def min_play_time(self) -> Optional[int]:
         """The minimum playing time in minutes."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("minplaytime")
         if el is not None and el.get("value"):
             return int(el.get("value"))
@@ -175,7 +198,8 @@ class Game:
     def max_play_time(self) -> Optional[int]:
         """The maximum playing time in minutes."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("maxplaytime")
         if el is not None and el.get("value"):
             return int(el.get("value"))
@@ -185,7 +209,8 @@ class Game:
     def playing_time(self) -> Optional[int]:
         """The playing time in minutes."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("playingtime")
         if el is not None and el.get("value"):
             return int(el.get("value"))
@@ -195,7 +220,8 @@ class Game:
     def min_age(self) -> Optional[int]:
         """The minimum recommended player age."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
         el = self._xml_data.find("minage")
         if el is not None and el.get("value"):
             return int(el.get("value"))
@@ -378,7 +404,8 @@ class Game:
     def average_rating(self) -> Optional[float]:
         """The average user rating for the game."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
 
         # Path for /thing results
         rating_el = self._xml_data.find("./statistics/ratings/average")
@@ -403,7 +430,8 @@ class Game:
     def owned_by(self) -> Optional[int]:
         """The number of users who own the game."""
         self._fetch_data()
-        if self._xml_data is None: return None
+        if self._xml_data is None:
+            return None
 
         # Path for /thing results
         stats_el = self._xml_data.find("./statistics/ratings")

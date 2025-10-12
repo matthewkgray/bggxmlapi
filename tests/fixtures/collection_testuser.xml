@@ -1,25 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
-<items totalitems="2" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
-    <item objecttype="thing" objectid="174430" subtype="boardgame">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<items totalitems="2" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse" pubdate="Sun, 12 Oct 2025 02:16:43 +0000">
+    <item objecttype="thing" objectid="174430" subtype="boardgame" collid="5677939">
         <name sortindex="1">Gloomhaven</name>
         <yearpublished>2017</yearpublished>
-        <stats minplayers="1" maxplayers="4" numowned="50000">
-            <rating value="8.9">
-                <usersrated value="45000"/>
+        <stats minplayers="1" maxplayers="4" minplaytime="60" maxplaytime="120" playingtime="120" numowned="50000">
+            <rating value="8">
+                <usersrated value="30000" />
+                <average value="8.8" />
+                <bayesaverage value="8.6" />
+                <stddev value="1.5" />
+                <median value="0" />
+                <ranks>
+                    <rank type="subtype" id="1" name="boardgame" friendlyname="Board Game Rank" value="1" bayesaverage="8.6" />
+                </ranks>
             </rating>
         </stats>
-        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 12:00:00"/>
-        <numplays>5</numplays>
+        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 00:00:00" />
+        <numplays>10</numplays>
     </item>
-    <item objecttype="thing" objectid="30549" subtype="boardgame">
+    <item objecttype="thing" objectid="30549" subtype="boardgame" collid="5677940">
         <name sortindex="1">Pandemic Legacy: Season 1</name>
         <yearpublished>2015</yearpublished>
-        <stats minplayers="2" maxplayers="4">
-            <rating value="9.5">
-                <usersrated value="40000"/>
+        <stats minplayers="2" maxplayers="4" minplaytime="60" maxplaytime="60" playingtime="60" numowned="60000">
+            <rating value="N/A">
+                <usersrated value="40000" />
+                <average value="8.6" />
+                <bayesaverage value="8.4" />
+                <stddev value="1.4" />
+                <median value="0" />
+                <ranks>
+                    <rank type="subtype" id="1" name="boardgame" friendlyname="Board Game Rank" value="2" bayesaverage="8.4" />
+                </ranks>
             </rating>
         </stats>
-        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 12:00:00"/>
-        <numplays>10</numplays>
+        <status own="1" prevowned="0" fortrade="0" want="0" wanttoplay="0" wanttobuy="0" wishlist="0" preordered="0" lastmodified="2020-01-01 00:00:00" />
+        <numplays>5</numplays>
     </item>
 </items>
