@@ -1,0 +1,9 @@
+<items>
+  <item id="822" type="boardgame">
+    <comments page="1" pagesize="100" totalitems="150">
+      <comment username="user1" rating="8.5" value="Great game! Love the tile laying." />
+      <comment username="user2" rating="7" value="Fun, but can be a bit mean." />
+      <comment username="user3" rating="9" value="" />
+    </comments>
+  </item>
+</items>

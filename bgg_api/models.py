@@ -38,9 +38,6 @@ class Game:
 
     def _set_xml_data(self, xml_data: etree._Element):
         """Helper to set the xml data for the game from a 'thing' call."""
-        if self._xml_data is not None:
-            return # Data already set
-
         item = xml_data.find(f".//item[@id='{self.id}']")
 
         if item is None:
@@ -341,6 +338,28 @@ class Game:
     def publishers(self) -> List["Link"]:
         """List of game publishers."""
         return self._get_links("boardgamepublisher")
+
+    @property
+    def comments(self) -> List[str]:
+        """A list of all user comments for the game."""
+        # Fetch the first page to determine the total number of pages.
+        if self.ratings._total_pages is None:
+            # Check if there are any comments to fetch. This is an optimization
+            # to avoid a network call if we already know there are no comments.
+            if self.statistics and self.statistics.num_comments == 0:
+                return []
+            self.ratings.fetch_more(1)
+
+        # If after the first fetch, we find there are no pages, we're done.
+        if self.ratings.all_fetched:
+            return [rating.comment for rating in self.ratings if rating.comment]
+
+        # Fetch the remaining pages.
+        remaining_pages = self.ratings._total_pages - self.ratings._pages_fetched
+        if remaining_pages > 0:
+            self.ratings.fetch_more(num_pages=remaining_pages)
+
+        return [rating.comment for rating in self.ratings if rating.comment]
 
     @property
     def statistics(self) -> Optional["Statistics"]:
