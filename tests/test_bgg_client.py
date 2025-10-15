@@ -621,3 +621,58 @@ class TestGameCarcassonne:
             assert isinstance(rank.friendly_name, str)
             assert isinstance(rank.value, int)
             assert isinstance(rank.bayes_average, float)
+
+@responses.activate
+def test_game_comments_pagination(bgg_client):
+    """Test fetching and parsing of game comments, including pagination."""
+    game_id = 822
+    ratings_url = f"{bgg_client.api_url}/thing"
+
+    # Mock for the initial game data fetch
+    responses.add(
+        method=responses.GET,
+        url=ratings_url,
+        body=load_fixture("thing_822.xml"),
+        match=[responses.matchers.query_param_matcher({"id": str(game_id), "stats": "1"})],
+        status=200,
+        content_type="application/xml",
+    )
+    # Mock for page 1 of comments
+    responses.add(
+        method=responses.GET,
+        url=ratings_url,
+        body=load_fixture("ratings_822_page1.xml"),
+        match=[
+            responses.matchers.query_param_matcher(
+                {"id": str(game_id), "ratingcomments": "1", "page": "1", "pagesize": "100"}
+            )
+        ],
+        status=200,
+        content_type="application/xml",
+    )
+    # Mock for page 2 of comments
+    responses.add(
+        method=responses.GET,
+        url=ratings_url,
+        body=load_fixture("ratings_822_page2.xml"),
+        match=[
+            responses.matchers.query_param_matcher(
+                {"id": str(game_id), "ratingcomments": "1", "page": "2", "pagesize": "100"}
+            )
+        ],
+        status=200,
+        content_type="application/xml",
+    )
+
+    game = bgg_client.get_game(game_id)
+    comments = game.comments
+
+    # Initial fetch, then two pages of comments.
+    assert len(responses.calls) == 3
+
+    assert len(comments) == 4
+    assert "Great game! Love the tile laying." in comments
+    assert "Fun, but can be a bit mean." in comments
+    assert "A classic for a reason." in comments
+    assert "Not my cup of tea." in comments
+    assert "" not in comments
