@@ -42,6 +42,7 @@ License-File: LICENSE
 Requires-Dist: requests>=2.20.0
 Requires-Dist: requests-cache>=0.9.0
 Requires-Dist: lxml>=4.6.0
+Requires-Dist: scipy>=1.7.0
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: responses; extra == "dev"
