@@ -1,5 +1,6 @@
 import argparse
 import logging
+from scipy.stats import pearsonr
 from bgg_api import BGGClient, BGGAPIError
 
 # Configure logging
@@ -71,6 +72,13 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
         print(f"Users with no preference (same rating): {no_preference} ({no_preference/len(common_raters):.1%})")
         print(f"Average rating for '{game1.name}' among these users: {total_rating_game1/len(common_raters):.2f}")
         print(f"Average rating for '{game2.name}' among these users: {total_rating_game2/len(common_raters):.2f}")
+
+        # Calculate correlation coefficient
+        if len(common_raters) > 1:
+            ratings1 = [game1_ratings[u] for u in common_raters]
+            ratings2 = [game2_ratings[u] for u in common_raters]
+            correlation, p_value = pearsonr(ratings1, ratings2)
+            print(f"Correlation of ratings among common raters: {correlation:.4f} (p-value: {p_value:.4f})")
 
 
         # --- Analysis of users who rated only one game ---
