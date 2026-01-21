@@ -66,7 +66,7 @@ class BGGClient:
 
         self.session = _sessions[cache_key]
         self.api_token = api_token
-        self.api_url = "https://www.boardgamegeek.com/xmlapi2"
+        self.api_url = "https://boardgamegeek.com/xmlapi2"
         self.snapshot_url = "https://raw.githubusercontent.com/beefsack/bgg-ranking-historicals/master"
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff

@@ -12,7 +12,7 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
     Fetches ratings for two games, compares the user ratings, and
     provides a summary of preferences.
     """
-    client = BGGClient()
+    client = BGGClient(api_token="af0a696a-7be1-4701-841a-17704c6892cc")
 
     try:
         log.info(f"Fetching details for Game 1 (ID: {game1_id}) and Game 2 (ID: {game2_id})...")
@@ -39,7 +39,7 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
 
         # Find common raters
         common_raters = set(game1_ratings.keys()) & set(game2_ratings.keys())
-        log.info(f"\\nFound {len(common_raters)} users who rated both games.")
+        log.info(f"\\nFound {len(common_raters)} users who rated both games ({len(game1_ratings)} and {len(game2_ratings)} of the games individually).")
 
         if not common_raters:
             log.warning("No common raters found with the specified number of pages. Try increasing the page count.")
