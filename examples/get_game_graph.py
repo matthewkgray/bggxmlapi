@@ -27,12 +27,15 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
         log.info(f"Processing: {name} (ID: {game.id})")
         
         users_rated = 0
+        average_rating = 0.0
         if game.statistics:
             users_rated = game.statistics.users_rated
+            average_rating = game.statistics.average
 
         collected_games[game_id] = {
             'name': name,
-            'users_rated': users_rated
+            'users_rated': users_rated,
+            'average_rating': average_rating
         }
         
         # Collect related game IDs
@@ -116,6 +119,22 @@ def main():
     print("\n--- Cluster Analysis ---")
     cluster_name = format_cluster_name(valid_games)
     print(f"Cluster Name: {cluster_name}")
+    
+    # Calculate Overall Average Rating
+    total_rating_sum = 0
+    total_users_rated = 0
+    
+    for g in valid_games:
+        users = g.get('users_rated', 0)
+        rating = g.get('average_rating', 0.0)
+        total_rating_sum += users * rating
+        total_users_rated += users
+        
+    overall_average = 0.0
+    if total_users_rated > 0:
+        overall_average = total_rating_sum / total_users_rated
+        
+    print(f"Overall Average Rating: {overall_average:.2f}")
     
     sorted_ids = sorted(collected_games.keys())
     print(f"Total count: {len(valid_games)}")
