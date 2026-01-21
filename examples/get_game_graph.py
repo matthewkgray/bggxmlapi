@@ -34,6 +34,7 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
 
         collected_games[game_id] = {
             'name': name,
+            'type': game.type,
             'users_rated': users_rated,
             'average_rating': average_rating
         }
@@ -124,11 +125,17 @@ def main():
     total_rating_sum = 0
     total_users_rated = 0
     
+    type_counts = {}
+    
     for g in valid_games:
         users = g.get('users_rated', 0)
         rating = g.get('average_rating', 0.0)
+        g_type = g.get('type', 'unknown')
+        
         total_rating_sum += users * rating
         total_users_rated += users
+        
+        type_counts[g_type] = type_counts.get(g_type, 0) + 1
         
     overall_average = 0.0
     if total_users_rated > 0:
@@ -136,6 +143,11 @@ def main():
         
     print(f"Overall Average Rating: {overall_average:.2f}")
     print(f"Total Ratings: {total_users_rated}")
+    
+    # Print Type Counts
+    print("Item Counts:")
+    for t, count in type_counts.items():
+        print(f"  {t}: {count}")
     
     sorted_ids = sorted(collected_games.keys())
     print(f"Total count: {len(valid_games)}")

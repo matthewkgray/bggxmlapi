@@ -105,6 +105,14 @@ class Game:
         return "N/A"
 
     @property
+    def type(self) -> str:
+        """The type of the item (e.g. boardgame, boardgameexpansion)."""
+        self._fetch_data()
+        if self._xml_data is None:
+            return "N/A"
+        return self._xml_data.get("type", "N/A")
+
+    @property
     def alternate_names(self) -> List[str]:
         """A list of the game's alternate names."""
         self._fetch_data()
