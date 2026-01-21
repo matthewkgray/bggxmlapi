@@ -67,7 +67,7 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
 def format_cluster_name(games_data: list) -> str:
     """
     Formats the cluster name: MainGame (+GameA, GameB, +N)
-    games_data is a list of dicts: {'name': str, 'users_rated': int}
+    games_data is a list of dicts: {'name': str, 'users_rated': int, 'type': str}
     """
     if not games_data:
         return "Empty Cluster"
@@ -83,16 +83,30 @@ def format_cluster_name(games_data: list) -> str:
     parts = [main_game, " (+"]
     extras = []
     
-    # Add GameA
-    if len(sorted_games) > 1:
-        extras.append(sorted_games[1]['name'])
+    # Candidates for extras (excluding main game)
+    candidates = sorted_games[1:]
+    
+    # Prioritize 'boardgame' type
+    boardgames = [g for g in candidates if g.get('type') == 'boardgame']
+    expansions = [g for g in candidates if g.get('type') != 'boardgame']
+    
+    # Select up to 2 extras
+    selected_extras = []
+    
+    # Take from boardgames first
+    selected_extras.extend(boardgames[:2])
+    
+    # If we need more, take from expansions
+    if len(selected_extras) < 2:
+        needed = 2 - len(selected_extras)
+        selected_extras.extend(expansions[:needed])
         
-    # Add GameB
-    if len(sorted_games) > 2:
-        extras.append(sorted_games[2]['name'])
+    for extra in selected_extras:
+        extras.append(extra['name'])
         
     # Add +N
-    remaining = len(sorted_games) - 3
+    # N is total remaining (all candidates - selected extras)
+    remaining = len(candidates) - len(selected_extras)
     if remaining > 0:
         extras.append(f"+{remaining}")
         
