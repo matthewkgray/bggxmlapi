@@ -42,8 +42,8 @@ def main():
     clusters_found = 0
     current_rank = 1
 
-    print(f"{'Rank':<6} | {'Cluster Name':<60} | {'Avg Rating':<10}")
-    print("-" * 80)
+    print(f"{'Rank':<6} | {'Cluster Name':<60} | {'#G':<4} | {'#X':<4}")
+    print("-" * 86)
 
     while clusters_found < args.limit and current_rank <= args.rank_limit:
         game_id = snapshot.get_id_at_rank(current_rank)
@@ -75,19 +75,11 @@ def main():
             
         cluster_name = format_cluster_name(valid_games)
         stats = calculate_cluster_stats(valid_games)
-        overall_avg = stats['overall_average']
         
-        # Determine the "rank" to display. 
-        # The user said "if the 4th game is in the cluster for the second game, it is skipped 
-        # and the 5th ranked game becomes the 4th ranked game."
-        # This implies the output list just increments 1, 2, 3... for each CLUSTER found.
-        # It DOES NOT mean we preserve the BGG rank calculation. e.g. "Rank 1" of our list could be BGG Rank 1, 
-        # "Rank 2" of our list could be BGG Rank 5 (if 2,3,4 were in Rank 1's cluster).
-        # Actually re-reading: "fetched by rank... fetching full cluster... lists the game by rank."
-        # "if the 4th game is in the cluster... skip... 5th ranked game becomes the 4th ranked game."
-        # This sounds like our output list is numbered 1..N.
+        num_games = stats['type_counts'].get('boardgame', 0)
+        num_expansions = stats['type_counts'].get('boardgameexpansion', 0)
         
-        print(f"{clusters_found + 1:<6} | {cluster_name[:60]:<60} | {overall_avg:.2f}")
+        print(f"{clusters_found + 1:<6} | {cluster_name[:60]:<60} | {num_games:<4} | {num_expansions:<4}")
         
         clusters_found += 1
         current_rank += 1
