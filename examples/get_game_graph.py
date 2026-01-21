@@ -101,6 +101,35 @@ def format_cluster_name(games_data: list) -> str:
     
     return "".join(parts).replace(" (+)", "") # Handle edge case if logical but unlikely
 
+def calculate_cluster_stats(games_data: list) -> dict:
+    """
+    Calculates aggregate statistics for a cluster of games.
+    Returns a dict with 'overall_average', 'total_ratings', and 'type_counts'.
+    """
+    total_rating_sum = 0
+    total_users_rated = 0
+    type_counts = {}
+    
+    for g in games_data:
+        users = g.get('users_rated', 0)
+        rating = g.get('average_rating', 0.0)
+        g_type = g.get('type', 'unknown')
+        
+        total_rating_sum += users * rating
+        total_users_rated += users
+        
+        type_counts[g_type] = type_counts.get(g_type, 0) + 1
+        
+    overall_average = 0.0
+    if total_users_rated > 0:
+        overall_average = total_rating_sum / total_users_rated
+        
+    return {
+        'overall_average': overall_average,
+        'total_ratings': total_users_rated,
+        'type_counts': type_counts
+    }
+
 def main():
     parser = argparse.ArgumentParser(
         description="Recursively find all related games (expansions, implementations, integrations).",
@@ -122,32 +151,14 @@ def main():
     cluster_name = format_cluster_name(valid_games)
     print(f"Cluster Name: {cluster_name}")
     
-    # Calculate Overall Average Rating
-    total_rating_sum = 0
-    total_users_rated = 0
+    stats = calculate_cluster_stats(valid_games)
     
-    type_counts = {}
-    
-    for g in valid_games:
-        users = g.get('users_rated', 0)
-        rating = g.get('average_rating', 0.0)
-        g_type = g.get('type', 'unknown')
-        
-        total_rating_sum += users * rating
-        total_users_rated += users
-        
-        type_counts[g_type] = type_counts.get(g_type, 0) + 1
-        
-    overall_average = 0.0
-    if total_users_rated > 0:
-        overall_average = total_rating_sum / total_users_rated
-        
-    print(f"Overall Average Rating: {overall_average:.2f}")
-    print(f"Total Ratings: {total_users_rated}")
+    print(f"Overall Average Rating: {stats['overall_average']:.2f}")
+    print(f"Total Ratings: {stats['total_ratings']}")
     
     # Print Type Counts
     print("Item Counts:")
-    for t, count in type_counts.items():
+    for t, count in stats['type_counts'].items():
         print(f"  {t}: {count}")
     
     sorted_ids = sorted(collected_games.keys())
