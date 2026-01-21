@@ -43,7 +43,8 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
         related_ids = set()
         
         for link in game.expansions:
-            related_ids.add(link.id)
+            if not link.inbound:
+                related_ids.add(link.id)
         for link in game.implementations:
             related_ids.add(link.id)
         for link in game.integrations:

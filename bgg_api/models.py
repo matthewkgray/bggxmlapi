@@ -77,6 +77,7 @@ class Game:
                     link_type=link_type,
                     link_id=link_id,
                     value=link_el.get("value", "N/A"),
+                    inbound=link_el.get("inbound", "false") == "true",
                 )
             )
         return links
@@ -745,13 +746,14 @@ class Statistics:
 class Link:
     """A generic link to another item on BGG."""
 
-    def __init__(self, link_type: str, link_id: int, value: str):
+    def __init__(self, link_type: str, link_id: int, value: str, inbound: bool = False):
         self.type = link_type
         self.id = link_id
         self.value = value
+        self.inbound = inbound
 
     def __repr__(self):
-        return f"Link(type='{self.type}', id={self.id}, value='{self.value}')"
+        return f"Link(type='{self.type}', id={self.id}, value='{self.value}', inbound={self.inbound})"
 
 
 class PlayerSuggestion:
