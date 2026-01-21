@@ -135,6 +135,7 @@ def main():
         overall_average = total_rating_sum / total_users_rated
         
     print(f"Overall Average Rating: {overall_average:.2f}")
+    print(f"Total Ratings: {total_users_rated}")
     
     sorted_ids = sorted(collected_games.keys())
     print(f"Total count: {len(valid_games)}")
