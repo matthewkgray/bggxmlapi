@@ -11,6 +11,39 @@ log = logging.getLogger(__name__)
 # so we typically want clean stdout.
 logging.basicConfig(level=logging.WARNING, format="[%(levelname)s] %(message)s")
 
+import textwrap
+
+def print_wrapped_row(columns, widths, indent=" | "):
+    """
+    Prints a row with wrapped text for the last column or specific columns.
+    Simple implementation: wraps the last column to fit remaining width.
+    columns: list of strings
+    widths: list of integers (width for each column). Last one can be 0 (auto-fill).
+    """
+    # Calculate available width for the last column
+    fixed_width = sum(widths[:-1]) + len(indent) * (len(widths) - 1)
+    max_total_width = 150
+    last_col_width = max(20, max_total_width - fixed_width)
+    
+    # Wrap the last column
+    last_col_content = columns[-1]
+    wrapped_lines = textwrap.wrap(last_col_content, width=last_col_width)
+    
+    if not wrapped_lines:
+        wrapped_lines = [""]
+        
+    # Print the first line
+    row_str = ""
+    for i in range(len(columns) - 1):
+        row_str += f"{columns[i]:<{widths[i]}}{indent}"
+    row_str += wrapped_lines[0]
+    print(row_str)
+    
+    # Print subsequent lines indented
+    indent_padding = " " * fixed_width
+    for line in wrapped_lines[1:]:
+        print(f"{indent_padding}{indent}{line}")
+
 def main():
     parser = argparse.ArgumentParser(
         description="List game clusters by rank, skipping games already visited.",
@@ -44,7 +77,7 @@ def main():
 
     visited_game_info = {} # Maps game_id -> {rep_name, rep_rank, games_list}
     deduped_games = [] # List of {name, rank, rep_name, rep_rank, games_list}
-    cluster_hit_counts = {} # Maps rep_rank -> {'name': cluster_name, 'count': int}
+    cluster_hit_counts = {} # Maps rep_rank -> {'name': cluster_name, 'count': int, 'games_list': list}
 
     print(f"{'Rank':<6} | {'Cluster Name':<60} | {'#G':<4} | {'#X':<4}")
     print("-" * 86)
@@ -71,7 +104,7 @@ def main():
                 # Increment hit count
                 if info['rep_rank'] not in cluster_hit_counts:
                      # Should not happen as we init below, but safe guard
-                     cluster_hit_counts[info['rep_rank']] = {'name': info['rep_name'], 'count': 0}
+                     cluster_hit_counts[info['rep_rank']] = {'name': info['rep_name'], 'count': 0, 'games_list': info['games_list']}
                 cluster_hit_counts[info['rep_rank']]['count'] += 1
                 
             current_rank += 1
@@ -96,7 +129,7 @@ def main():
         boardgames_list.sort() 
         
         # Init hit count for this new cluster (1 because we found the leader)
-        cluster_hit_counts[current_rank] = {'name': cluster_name, 'count': 1}
+        cluster_hit_counts[current_rank] = {'name': cluster_name, 'count': 1, 'games_list': boardgames_list}
         
         # Mark all found games as visited and store metadata
         for gid in collected_games.keys():
@@ -120,24 +153,41 @@ def main():
     if deduped_games:
         print("\n--- Deduped Games Summary ---")
         # Columns: Rank, Game, Representative (Rank), Cluster Games
-        print(f"{'Rank':<6} | {'Game':<40} | {'Rep (Rank)':<30} | {'Cluster Games'}")
+        widths = [6, 40, 30, 0] # 0 = auto fill rest
+        print(f"{'Rank':<{widths[0]}} | {'Game':<{widths[1]}} | {'Rep (Rank)':<{widths[2]}} | {'Cluster Games'}")
         print("-" * 150)
         for d in deduped_games:
             rep_str = f"{d['rep_name'][:20]} ({d['rep_rank']})"
             games_str = ", ".join(d['games_list'])
-            print(f"{d['rank']:<6} | {d['name'][:40]:<40} | {rep_str:<30} | {games_str}")
+            
+            cols = [
+                str(d['rank']),
+                d['name'][:40],
+                rep_str,
+                games_str
+            ]
+            print_wrapped_row(cols, widths)
             
     if cluster_hit_counts:
         print("\n--- Top Clusters by Ranked Members ---")
-        print(f"{'Rank':<6} | {'Cluster Name':<60} | {'Ranked Members':<15}")
-        print("-" * 90)
+        # Columns: Rank, Cluster Name, Ranked Members, All Cluster Games
+        widths = [6, 40, 15, 0]
+        print(f"{'Rank':<{widths[0]}} | {'Cluster Name':<{widths[1]}} | {'Ranked Members':<{widths[2]}} | {'All Cluster Games'}")
+        print("-" * 150)
         
         # Sort by count desc
         sorted_clusters = sorted(cluster_hit_counts.values(), key=lambda x: x['count'], reverse=True)
         
         # Print top 20 or all if fewer
         for i, c in enumerate(sorted_clusters[:20]):
-             print(f"{i + 1:<6} | {c['name'][:60]:<60} | {c['count']:<15}")
+             games_str = ", ".join(c['games_list'])
+             cols = [
+                 str(i + 1),
+                 c['name'][:40], # Limit name len in column
+                 str(c['count']),
+                 games_str
+             ]
+             print_wrapped_row(cols, widths)
 
 if __name__ == "__main__":
     main()
