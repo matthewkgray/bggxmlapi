@@ -44,6 +44,7 @@ def main():
 
     visited_game_info = {} # Maps game_id -> {rep_name, rep_rank, games_list}
     deduped_games = [] # List of {name, rank, rep_name, rep_rank, games_list}
+    cluster_hit_counts = {} # Maps rep_rank -> {'name': cluster_name, 'count': int}
 
     print(f"{'Rank':<6} | {'Cluster Name':<60} | {'#G':<4} | {'#X':<4}")
     print("-" * 86)
@@ -67,6 +68,12 @@ def main():
                     'rep_rank': info['rep_rank'],
                     'games_list': info['games_list']
                 })
+                # Increment hit count
+                if info['rep_rank'] not in cluster_hit_counts:
+                     # Should not happen as we init below, but safe guard
+                     cluster_hit_counts[info['rep_rank']] = {'name': info['rep_name'], 'count': 0}
+                cluster_hit_counts[info['rep_rank']]['count'] += 1
+                
             current_rank += 1
             continue
 
@@ -86,18 +93,16 @@ def main():
         
         # Identify boardgames for the summary list
         boardgames_list = [g['name'] for g in valid_games if g.get('type') == 'boardgame']
-        # Sort so the main game is first, or keep alphabetical, or sorted by users_rated? 
-        # format_cluster_name sorts by users_rated, let's just stick to that or similar.
-        # Let's re-sort by name for the list display or just store them. 
-        # User asked for "list of all the *games*".
         boardgames_list.sort() 
+        
+        # Init hit count for this new cluster (1 because we found the leader)
+        cluster_hit_counts[current_rank] = {'name': cluster_name, 'count': 1}
         
         # Mark all found games as visited and store metadata
         for gid in collected_games.keys():
             visited_games.add(gid)
             visited_game_info[gid] = {
-                'rep_name': cluster_name, # or just main game name? User said "higher ranked game... that ranked higher"
-                 # Actually, current_rank IS the rank of the representative game here (since we are processing it).
+                'rep_name': cluster_name, 
                 'rep_rank': current_rank, 
                 'games_list': boardgames_list
             }
@@ -121,6 +126,18 @@ def main():
             rep_str = f"{d['rep_name'][:20]} ({d['rep_rank']})"
             games_str = ", ".join(d['games_list'])
             print(f"{d['rank']:<6} | {d['name'][:40]:<40} | {rep_str:<30} | {games_str}")
+            
+    if cluster_hit_counts:
+        print("\n--- Top Clusters by Ranked Members ---")
+        print(f"{'Rank':<6} | {'Cluster Name':<60} | {'Ranked Members':<15}")
+        print("-" * 90)
+        
+        # Sort by count desc
+        sorted_clusters = sorted(cluster_hit_counts.values(), key=lambda x: x['count'], reverse=True)
+        
+        # Print top 20 or all if fewer
+        for i, c in enumerate(sorted_clusters[:20]):
+             print(f"{i + 1:<6} | {c['name'][:60]:<60} | {c['count']:<15}")
 
 if __name__ == "__main__":
     main()
