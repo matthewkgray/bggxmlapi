@@ -104,8 +104,12 @@ def main():
                 # Increment hit count
                 if info['rep_rank'] not in cluster_hit_counts:
                      # Should not happen as we init below, but safe guard
-                     cluster_hit_counts[info['rep_rank']] = {'name': info['rep_name'], 'count': 0, 'games_list': info['games_list']}
+                     # If it does happen, we might miss the leader name, but we can't easily recover it here without looking it up.
+                     # However, since this game is in visited_games, the leader MUST have been processed.
+                     cluster_hit_counts[info['rep_rank']] = {'name': info['rep_name'], 'count': 0, 'games_list': []}
+                
                 cluster_hit_counts[info['rep_rank']]['count'] += 1
+                cluster_hit_counts[info['rep_rank']]['games_list'].append(snapshot.name(game_id))
                 
             current_rank += 1
             continue
@@ -129,7 +133,8 @@ def main():
         boardgames_list.sort() 
         
         # Init hit count for this new cluster (1 because we found the leader)
-        cluster_hit_counts[current_rank] = {'name': cluster_name, 'count': 1, 'games_list': boardgames_list}
+        # Start the ranked list with just the leader
+        cluster_hit_counts[current_rank] = {'name': cluster_name, 'count': 1, 'games_list': [snapshot.name(game_id)]}
         
         # Mark all found games as visited and store metadata
         for gid in collected_games.keys():
@@ -170,9 +175,9 @@ def main():
             
     if cluster_hit_counts:
         print("\n--- Top Clusters by Ranked Members ---")
-        # Columns: Rank, Cluster Name, Ranked Members, All Cluster Games
+        # Columns: Rank, Cluster Name, Ranked Members, Ranked Members List
         widths = [6, 40, 15, 0]
-        print(f"{'Rank':<{widths[0]}} | {'Cluster Name':<{widths[1]}} | {'Ranked Members':<{widths[2]}} | {'All Cluster Games'}")
+        print(f"{'Rank':<{widths[0]}} | {'Cluster Name':<{widths[1]}} | {'Ranked Members':<{widths[2]}} | {'Ranked Members List'}")
         print("-" * 150)
         
         # Sort by count desc
