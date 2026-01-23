@@ -42,6 +42,9 @@ def main():
     clusters_found = 0
     current_rank = 1
 
+    visited_game_info = {} # Maps game_id -> {rep_name, rep_rank, games_list}
+    deduped_games = [] # List of {name, rank, rep_name, rep_rank, games_list}
+
     print(f"{'Rank':<6} | {'Cluster Name':<60} | {'#G':<4} | {'#X':<4}")
     print("-" * 86)
 
@@ -54,6 +57,16 @@ def main():
             continue
             
         if game_id in visited_games:
+            # Access info about the cluster leader
+            info = visited_game_info.get(game_id)
+            if info:
+                deduped_games.append({
+                    'name': snapshot.name(game_id),
+                    'rank': current_rank,
+                    'rep_name': info['rep_name'],
+                    'rep_rank': info['rep_rank'],
+                    'games_list': info['games_list']
+                })
             current_rank += 1
             continue
 
@@ -68,12 +81,27 @@ def main():
         if not valid_games:
              current_rank += 1
              continue
-
-        # Mark all found games as visited
+        
+        cluster_name = format_cluster_name(valid_games)
+        
+        # Identify boardgames for the summary list
+        boardgames_list = [g['name'] for g in valid_games if g.get('type') == 'boardgame']
+        # Sort so the main game is first, or keep alphabetical, or sorted by users_rated? 
+        # format_cluster_name sorts by users_rated, let's just stick to that or similar.
+        # Let's re-sort by name for the list display or just store them. 
+        # User asked for "list of all the *games*".
+        boardgames_list.sort() 
+        
+        # Mark all found games as visited and store metadata
         for gid in collected_games.keys():
             visited_games.add(gid)
+            visited_game_info[gid] = {
+                'rep_name': cluster_name, # or just main game name? User said "higher ranked game... that ranked higher"
+                 # Actually, current_rank IS the rank of the representative game here (since we are processing it).
+                'rep_rank': current_rank, 
+                'games_list': boardgames_list
+            }
             
-        cluster_name = format_cluster_name(valid_games)
         stats = calculate_cluster_stats(valid_games)
         
         num_games = stats['type_counts'].get('boardgame', 0)
@@ -83,6 +111,16 @@ def main():
         
         clusters_found += 1
         current_rank += 1
+
+    if deduped_games:
+        print("\n--- Deduped Games Summary ---")
+        # Columns: Rank, Game, Representative (Rank), Cluster Games
+        print(f"{'Rank':<6} | {'Game':<40} | {'Rep (Rank)':<30} | {'Cluster Games'}")
+        print("-" * 150)
+        for d in deduped_games:
+            rep_str = f"{d['rep_name'][:20]} ({d['rep_rank']})"
+            games_str = ", ".join(d['games_list'])
+            print(f"{d['rank']:<6} | {d['name'][:40]:<40} | {rep_str:<30} | {games_str}")
 
 if __name__ == "__main__":
     main()
