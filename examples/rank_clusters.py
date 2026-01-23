@@ -42,7 +42,7 @@ def print_wrapped_row(columns, widths, indent=" | "):
     # Print subsequent lines indented
     indent_padding = " " * fixed_width
     for line in wrapped_lines[1:]:
-        print(f"{indent_padding}{indent}{line}")
+        print(f"{indent_padding}{line}")
 
 def main():
     parser = argparse.ArgumentParser(
