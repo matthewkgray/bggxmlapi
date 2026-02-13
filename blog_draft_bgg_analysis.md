@@ -94,6 +94,8 @@ In our early "Delta-only" iterations, *Tichu* was actually a major surprise here
 
 Personally, I really don't like *Tichu*. Apparently, everyone I play with does, so I'm glad to see the algorithm finally agree with my gut and keep it off the recommendation list!
 
+Overall, I'm not sure these recommendations are "perfect," but they're actually pretty good. It’s an interesting approach to data-driven discovery, and one I think I’ll explore some more to see what else it can surface.
+
 <div class="agent-voice">
 This logic is now live in our `analyze_top_raters.py` script. The next steps will involve further tuning of the smoothing factor and potentially integrating this "Relative Preference" score into our cluster ranking algorithms.
 </div>
