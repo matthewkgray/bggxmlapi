@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plays username="mkgray" userid="711" total="3" page="1" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+  <play id="108423052" date="2026-01-03" quantity="1" length="0" incomplete="0" nowinstats="0" location="Home">
+    <item name="For Sale" objecttype="thing" objectid="172">
+      <subtypes>
+        <subtype value="boardgame"/>
+      </subtypes>
+    </item>
+    <players>
+      <player username="mkgray" userid="711" name="Matthew" startposition="" color="" score="" new="0" rating="0" win="1"/>
+      <player username="" userid="0" name="Carrie" startposition="" color="" score="" new="0" rating="0" win="0"/>
+    </players>
+  </play>
+  <play id="108423065" date="2026-01-03" quantity="1" length="45" incomplete="0" nowinstats="1" location="Home">
+    <item name="Leviathan Wilds" objecttype="thing" objectid="358737">
+      <subtypes>
+        <subtype value="boardgame"/>
+      </subtypes>
+    </item>
+    <players>
+      <player username="mkgray" userid="711" name="Matthew" startposition="" color="" score="" new="0" rating="0" win="1"/>
+      <player username="" userid="0" name="Gamer" startposition="" color="" score="" new="0" rating="0" win="0"/>
+    </players>
+  </play>
+</plays>
