@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plays username="mkgray" userid="711" total="3" page="2" termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+  <play id="108259218" date="2025-11-18" quantity="1" length="0" incomplete="0" nowinstats="1" location="PSG">
+    <item name="Deckers" objecttype="thing" objectid="443306">
+      <subtypes>
+        <subtype value="boardgame"/>
+        <subtype value="boardgameimplementation"/>
+      </subtypes>
+    </item>
+    <players>
+      <player username="mkgray" userid="711" name="Matthew" startposition="" color="" score="" new="0" rating="0" win="0"/>
+      <player username="Kaelistus" userid="3355" name="Felix" startposition="" color="" score="" new="0" rating="0" win="1"/>
+    </players>
+  </play>
+</plays>

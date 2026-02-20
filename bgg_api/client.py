@@ -8,7 +8,7 @@ import logging
 
 import requests_cache
 
-from .models import Game, User
+from .models import Game, Plays, User
 from .snapshot import RankSnapshot
 from .exceptions import BGGNetworkError, BGGAPIError
 
@@ -260,3 +260,52 @@ class BGGClient:
             games.append(game)
 
         return games
+
+    def _get_plays_page(
+        self,
+        username: str,
+        page: int = 1,
+        mindate: Optional[str] = None,
+        maxdate: Optional[str] = None,
+        subtype: Optional[str] = None,
+    ) -> etree._Element:
+        """Internal method to fetch a single page of plays for a user."""
+        params: dict = {"username": username, "page": page}
+        if mindate is not None:
+            params["mindate"] = mindate
+        if maxdate is not None:
+            params["maxdate"] = maxdate
+        if subtype is not None:
+            params["subtype"] = subtype
+        return self._request("plays", params)
+
+    def get_plays(
+        self,
+        username: str,
+        mindate: Optional[str] = None,
+        maxdate: Optional[str] = None,
+        subtype: Optional[str] = None,
+    ) -> "Plays":
+        """
+        Returns a lazy container of all plays logged by a user.
+
+        Plays are fetched in reverse-chronological order (newest first),
+        paginated at 100 per page. All pages are fetched automatically
+        when you iterate or call len().
+
+        Args:
+            username (str): The BGG username to fetch plays for.
+            mindate (str, optional): Only return plays on or after this date (YYYY-MM-DD).
+            maxdate (str, optional): Only return plays on or before this date (YYYY-MM-DD).
+            subtype (str, optional): Filter by subtype, e.g. 'boardgame', 'rpg', 'videogame'.
+
+        Returns:
+            Plays: A lazy iterable of Play objects.
+        """
+        return Plays(
+            username=username,
+            client=self,
+            mindate=mindate,
+            maxdate=maxdate,
+            subtype=subtype,
+        )

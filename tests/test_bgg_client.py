@@ -676,3 +676,144 @@ def test_game_comments_pagination(bgg_client):
     assert "A classic for a reason." in comments
     assert "Not my cup of tea." in comments
     assert "" not in comments
+
+
+# ---- Plays tests ----
+
+@responses.activate
+def test_get_plays_basic(bgg_client):
+    """Test basic field parsing from a single-page plays response."""
+    username = "mkgray"
+    plays_url = f"{bgg_client.api_url}/plays"
+
+    # Use only page 1 fixture where total == page size (2 plays, total=2 for this test)
+    # We tweak the fixture inline so pagination stops after one page.
+    single_page_body = load_fixture("plays_mkgray_page1.xml").replace(
+        'total="3"', 'total="2"'
+    )
+    responses.add(
+        responses.GET,
+        plays_url,
+        body=single_page_body,
+        status=200,
+        content_type="application/xml",
+    )
+
+    plays = bgg_client.get_plays(username)
+
+    # No API call yet (lazy)
+    assert len(responses.calls) == 0
+
+    all_plays = list(plays)
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.params["username"] == username
+    assert responses.calls[0].request.params["page"] == "1"
+
+    assert len(all_plays) == 2
+
+    p = all_plays[0]
+    assert p.id == 108423052
+    assert p.date == "2026-01-03"
+    assert p.quantity == 1
+    assert p.length == 0
+    assert p.incomplete is False
+    assert p.nowinstats is False
+    assert p.location == "Home"
+    assert p.game_id == 172
+    assert p.game_name == "For Sale"
+    assert p.subtypes == ["boardgame"]
+    assert len(p.players) == 2
+
+    winner = p.players[0]
+    assert winner.username == "mkgray"
+    assert winner.userid == 711
+    assert winner.name == "Matthew"
+    assert winner.win is True
+
+    loser = p.players[1]
+    assert loser.username == ""
+    assert loser.name == "Carrie"
+    assert loser.win is False
+
+    p2 = all_plays[1]
+    assert p2.id == 108423065
+    assert p2.length == 45
+    assert p2.nowinstats is True
+
+
+@responses.activate
+def test_get_plays_pagination(bgg_client):
+    """Test that Plays automatically fetches all pages until total is reached."""
+    username = "mkgray"
+    plays_url = f"{bgg_client.api_url}/plays"
+
+    responses.add(
+        responses.GET,
+        plays_url,
+        body=load_fixture("plays_mkgray_page1.xml"),
+        match=[responses.matchers.query_param_matcher({"username": username, "page": "1"})],
+        status=200,
+        content_type="application/xml",
+    )
+    responses.add(
+        responses.GET,
+        plays_url,
+        body=load_fixture("plays_mkgray_page2.xml"),
+        match=[responses.matchers.query_param_matcher({"username": username, "page": "2"})],
+        status=200,
+        content_type="application/xml",
+    )
+
+    plays = bgg_client.get_plays(username)
+    all_plays = list(plays)
+
+    # Should have fetched 2 pages and returned 3 plays total
+    assert len(responses.calls) == 2
+    assert len(all_plays) == 3
+    assert plays.total == 3
+
+    # Verify the page-2 play parsed correctly
+    p3 = all_plays[2]
+    assert p3.id == 108259218
+    assert p3.game_name == "Deckers"
+    assert p3.game_id == 443306
+    assert p3.location == "PSG"
+    assert p3.subtypes == ["boardgame", "boardgameimplementation"]
+    assert len(p3.players) == 2
+    assert p3.players[1].username == "Kaelistus"
+    assert p3.players[1].win is True
+
+
+@responses.activate
+def test_get_plays_filters(bgg_client):
+    """Test that optional filter params are forwarded to the API."""
+    username = "mkgray"
+    plays_url = f"{bgg_client.api_url}/plays"
+
+    responses.add(
+        responses.GET,
+        plays_url,
+        body=load_fixture("plays_mkgray_page1.xml").replace('total="3"', 'total="2"'),
+        match=[
+            responses.matchers.query_param_matcher({
+                "username": username,
+                "page": "1",
+                "mindate": "2026-01-01",
+                "maxdate": "2026-01-31",
+                "subtype": "boardgame",
+            })
+        ],
+        status=200,
+        content_type="application/xml",
+    )
+
+    plays = bgg_client.get_plays(
+        username,
+        mindate="2026-01-01",
+        maxdate="2026-01-31",
+        subtype="boardgame",
+    )
+    all_plays = list(plays)
+
+    assert len(responses.calls) == 1
+    assert len(all_plays) == 2

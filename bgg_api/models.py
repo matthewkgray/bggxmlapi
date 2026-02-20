@@ -787,3 +787,180 @@ class PlayerSuggestions:
 
     def __len__(self):
         return len(self._suggestions)
+
+class PlayPlayer:
+    """Represents a single player in a logged play."""
+
+    def __init__(
+        self,
+        *,
+        username: str,
+        userid: int,
+        name: str,
+        startposition: str,
+        color: str,
+        score: str,
+        new: bool,
+        rating: int,
+        win: bool,
+    ):
+        self.username = username
+        self.userid = userid
+        self.name = name
+        self.startposition = startposition
+        self.color = color
+        self.score = score
+        self.new = new
+        self.rating = rating
+        self.win = win
+
+    def __repr__(self):
+        return f"PlayPlayer(name={self.name!r}, username={self.username!r}, win={self.win})"
+
+
+class Play:
+    """
+    Represents a single logged play of a board game.
+    """
+
+    def __init__(
+        self,
+        *,
+        id: int,
+        date: str,
+        quantity: int,
+        length: int,
+        incomplete: bool,
+        nowinstats: bool,
+        location: str,
+        game_id: int,
+        game_name: str,
+        subtypes: List[str],
+        players: List[PlayPlayer],
+    ):
+        self.id = id
+        self.date = date
+        self.quantity = quantity
+        self.length = length
+        self.incomplete = incomplete
+        self.nowinstats = nowinstats
+        self.location = location
+        self.game_id = game_id
+        self.game_name = game_name
+        self.subtypes = subtypes
+        self.players = players
+
+    def __repr__(self):
+        return f"Play(id={self.id}, date={self.date!r}, game={self.game_name!r})"
+
+    @classmethod
+    def _from_xml(cls, play_el: etree._Element) -> "Play":
+        """Parse a <play> XML element into a Play object."""
+        item_el = play_el.find("item")
+        game_id = int(item_el.get("objectid", 0)) if item_el is not None else 0
+        game_name = item_el.get("name", "") if item_el is not None else ""
+
+        subtypes: List[str] = []
+        if item_el is not None:
+            for sub_el in item_el.findall("./subtypes/subtype"):
+                val = sub_el.get("value")
+                if val:
+                    subtypes.append(val)
+
+        players: List[PlayPlayer] = []
+        for p_el in play_el.findall("./players/player"):
+            players.append(
+                PlayPlayer(
+                    username=p_el.get("username", ""),
+                    userid=int(p_el.get("userid", 0)),
+                    name=p_el.get("name", ""),
+                    startposition=p_el.get("startposition", ""),
+                    color=p_el.get("color", ""),
+                    score=p_el.get("score", ""),
+                    new=p_el.get("new", "0") == "1",
+                    rating=int(p_el.get("rating", 0)),
+                    win=p_el.get("win", "0") == "1",
+                )
+            )
+
+        return cls(
+            id=int(play_el.get("id", 0)),
+            date=play_el.get("date", ""),
+            quantity=int(play_el.get("quantity", 1)),
+            length=int(play_el.get("length", 0)),
+            incomplete=play_el.get("incomplete", "0") == "1",
+            nowinstats=play_el.get("nowinstats", "0") == "1",
+            location=play_el.get("location", ""),
+            game_id=game_id,
+            game_name=game_name,
+            subtypes=subtypes,
+            players=players,
+        )
+
+
+class Plays:
+    """
+    A lazy, auto-paginating container for a user's play history.
+
+    Plays are returned in reverse-chronological order (newest first).
+    All pages are fetched automatically when iterated.
+    """
+
+    def __init__(
+        self,
+        username: str,
+        client: "BGGClient",
+        mindate: Optional[str] = None,
+        maxdate: Optional[str] = None,
+        subtype: Optional[str] = None,
+    ):
+        self.username = username
+        self._client = client
+        self._mindate = mindate
+        self._maxdate = maxdate
+        self._subtype = subtype
+        self._plays: Optional[List[Play]] = None
+        self._total: Optional[int] = None
+
+    def _fetch_all(self):
+        """Fetch all pages of plays from the API."""
+        if self._plays is not None:
+            return
+
+        log.debug(f"Fetching plays for user '{self.username}'")
+        self._plays = []
+        page = 1
+        while True:
+            xml_root = self._client._get_plays_page(
+                self.username,
+                page=page,
+                mindate=self._mindate,
+                maxdate=self._maxdate,
+                subtype=self._subtype,
+            )
+
+            if self._total is None:
+                self._total = int(xml_root.get("total", 0))
+
+            page_plays = [Play._from_xml(el) for el in xml_root.findall("play")]
+            self._plays.extend(page_plays)
+
+            # Stop if we've fetched everything or got an empty page
+            if not page_plays or len(self._plays) >= self._total:
+                break
+            page += 1
+
+    @property
+    def total(self) -> Optional[int]:
+        """The total number of plays recorded on BGG (fetched lazily)."""
+        if self._total is None:
+            self._fetch_all()
+        return self._total
+
+    def __iter__(self):
+        self._fetch_all()
+        return iter(self._plays)
+
+    def __len__(self):
+        self._fetch_all()
+        return len(self._plays)
