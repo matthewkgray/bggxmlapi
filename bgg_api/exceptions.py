@@ -15,3 +15,7 @@ class BGGNetworkError(BGGException):
 class BGGNotAuthenticatedError(BGGException):
     """Raised if the attempted operation requires authentication and no token is provided."""
     pass
+
+class BGGRequestQueued(BGGException):
+    """Raised when the BGG API returns a 202 Accepted status and handle_accepted is False."""
+    pass
