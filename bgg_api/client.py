@@ -10,7 +10,7 @@ import requests_cache
 
 from .models import Game, Plays, User
 from .snapshot import RankSnapshot
-from .exceptions import BGGNetworkError, BGGAPIError
+from .exceptions import BGGNetworkError, BGGAPIError, BGGRequestQueued
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class BGGClient:
         self._current_backoff = initial_backoff
         self._last_request_time = 0
 
-    def _request(self, endpoint, params):
+    def _request(self, endpoint, params, handle_accepted=True):
         """Internal method to handle requests and retries for 202 status."""
         url = f"{self.api_url}/{endpoint}"
         headers = {}
@@ -108,9 +108,22 @@ class BGGClient:
                 response = self.session.get(url, params=params, headers=headers)
 
                 # Handle transient errors with exponential backoff
-                if response.status_code in [202, 429]:
+                if response.status_code == 202:
+                    if not handle_accepted:
+                        raise BGGRequestQueued("BGG API returned 202 (Accepted) and handle_accepted is False.")
+                    
+                    # For 202, just wait a fixed short time, don't use exponential backoff
+                    retry_wait = 2.0
                     log.warning(
-                        f"BGG API returned {response.status_code}. Retrying in {self._current_backoff}s... (Attempt {attempt + 1}/{self.max_retries})"
+                        f"BGG API returned 202 for {url} with params {params}. Retrying in {retry_wait}s... (Attempt {attempt + 1}/{self.max_retries})"
+                    )
+                    time.sleep(retry_wait)
+                    # Do NOT increase backoff for 202s, they aren't rate limits
+                    continue
+
+                if response.status_code == 429:
+                    log.warning(
+                        f"BGG API returned 429 for {url} with params {params}. Retrying in {self._current_backoff}s... (Attempt {attempt + 1}/{self.max_retries})"
                     )
                     time.sleep(self._current_backoff)
                     self._current_backoff *= self.backoff_factor
@@ -124,9 +137,14 @@ class BGGClient:
                 xml_root = etree.fromstring(response.content)
 
                 # Success! Decay the backoff for the next request
+                old_backoff = self._current_backoff
                 self._current_backoff = max(
                     self.initial_backoff, self._current_backoff * self.backoff_decay
                 )
+                if old_backoff != self._current_backoff:
+                    log.info(f"Request successful. Decaying backoff from {old_backoff:.2f}s to {self._current_backoff:.2f}s")
+                else:
+                    log.info(f"Request successful for {url}")
                 return xml_root
 
             except etree.XMLSyntaxError as e:
@@ -162,15 +180,18 @@ class BGGClient:
         params = {"name": username}
         return self._request("user", params)
 
-    def _get_collection_data(self, username: str) -> etree._Element:
+    def _get_collection_data(self, username: str, handle_accepted: bool = True, own: Optional[int] = 1) -> etree._Element:
         """Internal method to fetch the raw XML data for a user's collection."""
         params = {
             "username": username,
-            "own": 1,       # Only fetch games they own
             "stats": 1,     # Include stats for the games
             "brief": 0,     # Get detailed info, not brief
         }
-        return self._request("collection", params)
+        if own is not None:
+             params["own"] = own
+             
+        # log.info(f"debug: _get_collection_data params for {username}: {params}")
+        return self._request("collection", params, handle_accepted=handle_accepted)
 
     def _search(self, query: str) -> etree._Element:
         """Internal method to fetch search results."""
@@ -214,6 +235,43 @@ class BGGClient:
             # This will fetch the first N pages of ratings
             game.ratings.fetch_more(num_pages=max_rating_pages)
         return game
+
+    def get_games(self, game_ids: List[int]) -> List[Game]:
+        """
+        Retrieves multiple board games by their BGG IDs in a single batch request.
+
+        Args:
+            game_ids (List[int]): A list of BGG game IDs.
+
+        Returns:
+            List[Game]: A list of Game objects with their data populated.
+        """
+        if not game_ids:
+            return []
+
+        # Dedup IDs
+        unique_ids = list(set(game_ids))
+        
+        # BGG API allows comma-separated IDs
+        ids_str = ",".join(str(gid) for gid in unique_ids)
+        params = {
+            "id": ids_str,
+            "stats": 1,
+        }
+        xml_root = self._request("thing", params)
+        
+        games = []
+        for item_el in xml_root.findall("item"):
+            try:
+                game_id = int(item_el.get("id"))
+                game = Game(game_id=game_id, client=self)
+                # We can reuse _set_xml_data, which searches for the item by ID in the root
+                game._set_xml_data(xml_root)
+                games.append(game)
+            except (ValueError, TypeError, BGGAPIError) as e:
+                log.warning(f"Failed to parse game data for item in batch response: {e}")
+                
+        return games
 
     def get_rank_snapshot(self, date_str: str) -> RankSnapshot:
         """
