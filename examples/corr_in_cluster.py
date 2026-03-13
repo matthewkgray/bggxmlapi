@@ -214,22 +214,22 @@ def main():
             g1_id = res['g1'].id
             g2_id = res['g2'].id
             
-            # Label without pipes for better compatibility in direct edge placement
+            # Use standard arrow for all, style with linkStyle for robustness
             label = f"{corr:.2f}"
+            mermaid_lines.append(f'    G{g1_id} -- "{label}" --> G{g2_id}')
             
+            styles = []
             if corr > 0.8:
-                # Bold solid
-                mermaid_lines.append(f"    G{g1_id} =={label}==> G{g2_id}")
+                styles.append("stroke-width:4px")
             elif corr > 0.7:
-                # Solid
-                mermaid_lines.append(f"    G{g1_id} --{label}--> G{g2_id}")
+                styles.append("stroke-width:2px")
             elif corr > 0.6:
-                # Dashed
-                mermaid_lines.append(f"    G{g1_id} -. {label} .-> G{g2_id}")
+                styles.append("stroke-dasharray: 5 5")
             elif corr > 0.5:
-                # Dotted (solid arrow + style)
-                mermaid_lines.append(f"    G{g1_id} --{label}--> G{g2_id}")
-                link_styles.append(f"    linkStyle {edge_count} stroke-dasharray: 2 2")
+                styles.append("stroke-dasharray: 2 2")
+            
+            if styles:
+                link_styles.append(f"    linkStyle {edge_count} {','.join(styles)}")
             
             edge_count += 1
             
