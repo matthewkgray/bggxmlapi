@@ -178,7 +178,14 @@ def main():
         print(f"  {t}: {count}")
     
     sorted_ids = sorted(collected_games.keys())
-    print(f"Total count: {len(valid_games)}")
+    
+    print("\n--- Games in Cluster ---")
+    for gid in sorted_ids:
+        g = collected_games[gid]
+        if g is not None:
+            print(f"{gid:<7} | {g['type']:<20} | {g['name']}")
+    
+    print(f"\nTotal count: {len(valid_games)}")
     print("BGG IDs:", sorted_ids)
 
 if __name__ == "__main__":
