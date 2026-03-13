@@ -203,9 +203,10 @@ def main():
     
     # Define nodes: G1["Name (ID)"]
     for g in games:
-        # Sanitize name for Mermaid
-        safe_name = g.name.replace('"', "'")
-        mermaid_lines.append(f'    G{g.id}["{safe_name} ({g.id})"]')
+        # Sanitize name for Mermaid: remove characters that break labels
+        # and double quote to be safe.
+        clean_name = g.name.replace('"', "'").replace('[', '(').replace(']', ')')
+        mermaid_lines.append(f'    G{g.id}["{clean_name} ({g.id})"]')
         
     for res in results:
         corr = res['correlation']
@@ -213,21 +214,21 @@ def main():
             g1_id = res['g1'].id
             g2_id = res['g2'].id
             
-            # Label with correlation
-            label = f"|{corr:.2f}|"
+            # Label without pipes for better compatibility in direct edge placement
+            label = f"{corr:.2f}"
             
             if corr > 0.8:
                 # Bold solid
-                mermaid_lines.append(f"    G{g1_id} == {label} ==> G{g2_id}")
+                mermaid_lines.append(f"    G{g1_id} =={label}==> G{g2_id}")
             elif corr > 0.7:
                 # Solid
-                mermaid_lines.append(f"    G{g1_id} -- {label} --> G{g2_id}")
+                mermaid_lines.append(f"    G{g1_id} --{label}--> G{g2_id}")
             elif corr > 0.6:
                 # Dashed
                 mermaid_lines.append(f"    G{g1_id} -. {label} .-> G{g2_id}")
             elif corr > 0.5:
                 # Dotted (solid arrow + style)
-                mermaid_lines.append(f"    G{g1_id} -- {label} --> G{g2_id}")
+                mermaid_lines.append(f"    G{g1_id} --{label}--> G{g2_id}")
                 link_styles.append(f"    linkStyle {edge_count} stroke-dasharray: 2 2")
             
             edge_count += 1
