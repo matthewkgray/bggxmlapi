@@ -62,7 +62,22 @@ def main():
     parser.add_argument("--sort-by-corr", action="store_true", help="Sort the correlation table by correlation coefficient descending.")
     parser.add_argument("--sort-by-coraters", action="store_true", help="Sort the correlation table by co-rater count descending.")
     parser.add_argument("--thresh", type=float, default=0.7, help="Correlation threshold for transitive reclustering. Default is 0.7.")
+    parser.add_argument(
+        "--linethresh",
+        type=str,
+        default="0.8,0.7,0.6,0.5",
+        help="Comma-separated thresholds for graph edge styles (bold, solid, dashed, dotted). Default is 0.8,0.7,0.6,0.5.",
+    )
     args = parser.parse_args()
+
+    # Parse linethresh
+    try:
+        l_thresh = [float(x.strip()) for x in args.linethresh.split(",")]
+        if len(l_thresh) < 4:
+            raise ValueError("Need 4 thresholds for linethresh.")
+    except Exception as e:
+        log.error(f"Invalid linethresh format: {e}. Using defaults.")
+        l_thresh = [0.8, 0.7, 0.6, 0.5]
 
     client = BGGClient(api_token="YOUR_BGG_TOKEN")
 
@@ -210,7 +225,7 @@ def main():
         
     for res in results:
         corr = res['correlation']
-        if corr is not None and corr > 0.5:
+        if corr is not None and corr > l_thresh[3]:
             g1_id = res['g1'].id
             g2_id = res['g2'].id
             
@@ -219,13 +234,13 @@ def main():
             mermaid_lines.append(f'    G{g1_id} -- "{label}" --- G{g2_id}')
             
             styles = []
-            if corr > 0.8:
+            if corr > l_thresh[0]:
                 styles.append("stroke-width:4px")
-            elif corr > 0.7:
+            elif corr > l_thresh[1]:
                 styles.append("stroke-width:2px")
-            elif corr > 0.6:
+            elif corr > l_thresh[2]:
                 styles.append("stroke-dasharray: 5 5")
-            elif corr > 0.5:
+            elif corr > l_thresh[3]:
                 styles.append("stroke-dasharray: 2 2")
             
             if styles:
@@ -251,7 +266,7 @@ def main():
 </head>
 <body>
     <h1>BGG Correlation Graph (Seed ID: {args.game_id})</h1>
-    <p>Thresholds: >0.8 bold, >0.7 solid, >0.6 dashed, >0.5 dotted</p>
+    <p>Thresholds: >{l_thresh[0]} bold, >{l_thresh[1]} solid, >{l_thresh[2]} dashed, >{l_thresh[3]} dotted</p>
     <div class="mermaid">
 {mermaid_content}
     </div>
