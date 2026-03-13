@@ -193,5 +193,75 @@ def main():
             g = game_lookup[gid]
             print(f"  - {g.name} ({gid})")
 
+    # Graph Visualization (Mermaid.js)
+    graph_filename = f"bggid_{args.game_id}_graph.html"
+    log.info(f"Generating graph visualization: {graph_filename}")
+    
+    mermaid_lines = ["graph TD"]
+    link_styles = []
+    edge_count = 0
+    
+    # Define nodes: G1["Name (ID)"]
+    for g in games:
+        # Sanitize name for Mermaid
+        safe_name = g.name.replace('"', "'")
+        mermaid_lines.append(f'    G{g.id}["{safe_name} ({g.id})"]')
+        
+    for res in results:
+        corr = res['correlation']
+        if corr is not None and corr > 0.5:
+            g1_id = res['g1'].id
+            g2_id = res['g2'].id
+            
+            # Label with correlation
+            label = f"|{corr:.2f}|"
+            
+            if corr > 0.8:
+                # Bold solid
+                mermaid_lines.append(f"    G{g1_id} == {label} ==> G{g2_id}")
+            elif corr > 0.7:
+                # Solid
+                mermaid_lines.append(f"    G{g1_id} -- {label} --> G{g2_id}")
+            elif corr > 0.6:
+                # Dashed
+                mermaid_lines.append(f"    G{g1_id} -. {label} .-> G{g2_id}")
+            elif corr > 0.5:
+                # Dotted (solid arrow + style)
+                mermaid_lines.append(f"    G{g1_id} -- {label} --> G{g2_id}")
+                link_styles.append(f"    linkStyle {edge_count} stroke-dasharray: 2 2")
+            
+            edge_count += 1
+            
+    mermaid_content = "\n".join(mermaid_lines + link_styles)
+    
+    html_template = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BGG Correlation Graph - ID {args.game_id}</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({{startOnLoad:true}});</script>
+    <style>
+        body {{ font-family: sans-serif; background: #f4f4f9; padding: 20px; }}
+        .mermaid {{ background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; }}
+        h1 {{ color: #333; }}
+    </style>
+</head>
+<body>
+    <h1>BGG Correlation Graph (Seed ID: {args.game_id})</h1>
+    <p>Thresholds: >0.8 bold, >0.7 solid, >0.6 dashed, >0.5 dotted</p>
+    <div class="mermaid">
+{mermaid_content}
+    </div>
+</body>
+</html>
+"""
+    try:
+        with open(graph_filename, "w", encoding="utf-8") as f:
+            f.write(html_template)
+    except Exception as e:
+        log.error(f"Failed to write graph file: {e}")
+
 if __name__ == "__main__":
     main()
