@@ -214,9 +214,9 @@ def main():
             g1_id = res['g1'].id
             g2_id = res['g2'].id
             
-            # Use standard arrow for all, style with linkStyle for robustness
+            # Use non-directional edge for robustness
             label = f"{corr:.2f}"
-            mermaid_lines.append(f'    G{g1_id} -- "{label}" --> G{g2_id}')
+            mermaid_lines.append(f'    G{g1_id} -- "{label}" --- G{g2_id}')
             
             styles = []
             if corr > 0.8:
