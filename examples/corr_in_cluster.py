@@ -141,20 +141,43 @@ def main():
         # Sort by co-rater count descending
         results.sort(key=lambda x: x['co_rater_count'], reverse=True)
 
-    for res in results:
-        g1, g2 = res['g1'], res['g2']
-        corr_str = f"{res['correlation']:.4f}" if res['correlation'] is not None else "N/A"
-        p_val_str = f"{res['p_value']:.4f}" if res['p_value'] is not None else "N/A"
-
-        # Label with ID
-        n1_label = f"{g1.name} ({g1.id})"
-        n2_label = f"{g2.name} ({g2.id})"
-
-        # Truncate labels for table
-        n1 = (n1_label[:32] + '..') if len(n1_label) > 35 else n1_label
-        n2 = (n2_label[:32] + '..') if len(n2_label) > 35 else n2_label
-        
         print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str}")
+
+    # Reclustering (Transitive Agglomeration)
+    print("\n--- Reclustered Groups (Correlation > 0.7) ---")
+    
+    # Build adjacency list for games with corr > 0.7
+    adj = {g.id: set() for g in games}
+    for res in results:
+        if res['correlation'] is not None and res['correlation'] > 0.7:
+            adj[res['g1'].id].add(res['g2'].id)
+            adj[res['g2'].id].add(res['g1'].id)
+            
+    # Find connected components
+    visited = set()
+    clusters = []
+    
+    game_lookup = {g.id: g for g in games}
+    
+    for gid in sorted(game_lookup.keys()):
+        if gid not in visited:
+            # New component
+            component = set()
+            stack = [gid]
+            while stack:
+                curr = stack.pop()
+                if curr not in visited:
+                    visited.add(curr)
+                    component.add(curr)
+                    stack.extend(adj[curr] - visited)
+            clusters.append(component)
+            
+    # Print clusters
+    for i, cluster in enumerate(sorted(clusters, key=len, reverse=True), 1):
+        print(f"\nGroup {i}:")
+        for gid in sorted(cluster):
+            g = game_lookup[gid]
+            print(f"  - {g.name} ({gid})")
 
 if __name__ == "__main__":
     main()
