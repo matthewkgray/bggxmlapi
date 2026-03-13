@@ -61,6 +61,7 @@ def main():
     )
     parser.add_argument("--sort-by-corr", action="store_true", help="Sort the correlation table by correlation coefficient descending.")
     parser.add_argument("--sort-by-coraters", action="store_true", help="Sort the correlation table by co-rater count descending.")
+    parser.add_argument("--thresh", type=float, default=0.7, help="Correlation threshold for transitive reclustering. Default is 0.7.")
     args = parser.parse_args()
 
     client = BGGClient(api_token="YOUR_BGG_TOKEN")
@@ -144,12 +145,12 @@ def main():
         print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str}")
 
     # Reclustering (Transitive Agglomeration)
-    print("\n--- Reclustered Groups (Correlation > 0.7) ---")
+    print(f"\n--- Reclustered Groups (Correlation > {args.thresh}) ---")
     
-    # Build adjacency list for games with corr > 0.7
+    # Build adjacency list for games with corr > thresh
     adj = {g.id: set() for g in games}
     for res in results:
-        if res['correlation'] is not None and res['correlation'] > 0.7:
+        if res['correlation'] is not None and res['correlation'] > args.thresh:
             adj[res['g1'].id].add(res['g2'].id)
             adj[res['g2'].id].add(res['g1'].id)
             
