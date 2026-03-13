@@ -1,5 +1,6 @@
 import argparse
 import logging
+import statistics
 from scipy.stats import pearsonr
 from bgg_api import BGGClient, BGGAPIError
 
@@ -70,8 +71,19 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
         print(f"Users who prefer '{game1.name}': {prefer_game1} ({prefer_game1/len(common_raters):.1%})")
         print(f"Users who prefer '{game2.name}': {prefer_game2} ({prefer_game2/len(common_raters):.1%})")
         print(f"Users with no preference (same rating): {no_preference} ({no_preference/len(common_raters):.1%})")
-        print(f"Average rating for '{game1.name}' among these users: {total_rating_game1/len(common_raters):.2f}")
-        print(f"Average rating for '{game2.name}' among these users: {total_rating_game2/len(common_raters):.2f}")
+        avg1 = total_rating_game1/len(common_raters)
+        avg2 = total_rating_game2/len(common_raters)
+        print(f"Average rating for '{game1.name}' among these users: {avg1:.2f}")
+        print(f"Average rating for '{game2.name}' among these users: {avg2:.2f}")
+
+        if len(common_raters) > 1:
+            raters_list = list(common_raters)
+            ratings1 = [game1_ratings[u] for u in raters_list]
+            ratings2 = [game2_ratings[u] for u in raters_list]
+            var1 = statistics.variance(ratings1)
+            var2 = statistics.variance(ratings2)
+            print(f"Variance of ratings for '{game1.name}' among these users: {var1:.2f}")
+            print(f"Variance of ratings for '{game2.name}' among these users: {var2:.2f}")
 
         # Calculate correlation coefficient
         if len(common_raters) > 1:
@@ -86,18 +98,22 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
         game2_only_raters = set(game2_ratings.keys()) - common_raters
 
         # Avg rating for Game 1 from users who ONLY rated Game 1
-        g1_only_total_rating = sum(game1_ratings[u] for u in game1_only_raters)
-        g1_only_avg = g1_only_total_rating / len(game1_only_raters) if game1_only_raters else 0
+        g1_only_ratings = [game1_ratings[u] for u in game1_only_raters]
+        g1_only_avg = statistics.mean(g1_only_ratings) if g1_only_ratings else 0
+        g1_only_var = statistics.variance(g1_only_ratings) if len(g1_only_ratings) > 1 else 0
 
         # Avg rating for Game 2 from users who ONLY rated Game 2
-        g2_only_total_rating = sum(game2_ratings[u] for u in game2_only_raters)
-        g2_only_avg = g2_only_total_rating / len(game2_only_raters) if game2_only_raters else 0
+        g2_only_ratings = [game2_ratings[u] for u in game2_only_raters]
+        g2_only_avg = statistics.mean(g2_only_ratings) if g2_only_ratings else 0
+        g2_only_var = statistics.variance(g2_only_ratings) if len(g2_only_ratings) > 1 else 0
 
-        print("\\n--- Analysis of Exclusive Raters ---")
+        print("\n--- Analysis of Exclusive Raters ---")
         print(f"Found {len(game1_only_raters)} users who only rated '{game1.name}'.")
-        print(f"  - Average rating for '{game1.name}' among these users: {g1_only_avg:.2f}")
+        print(f"  - Average rating: {g1_only_avg:.2f}")
+        print(f"  - Variance: {g1_only_var:.2f}")
         print(f"Found {len(game2_only_raters)} users who only rated '{game2.name}'.")
-        print(f"  - Average rating for '{game2.name}' among these users: {g2_only_avg:.2f}")
+        print(f"  - Average rating: {g2_only_avg:.2f}")
+        print(f"  - Variance: {g2_only_var:.2f}")
 
 
     except BGGAPIError as e:
