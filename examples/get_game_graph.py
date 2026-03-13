@@ -6,7 +6,7 @@ from bgg_api import BGGClient, BGGAPIError
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-def get_related_games(game_id: int, client: BGGClient, collected_games: dict) -> None:
+def get_related_games(game_id: int, client: BGGClient, collected_games: dict, ignore_expansions: bool = True) -> None:
     """
     Recursively finds all related games for a given game ID.
     Traverses expansions, implementations, and integrations.
@@ -42,9 +42,10 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
         # Collect related game IDs
         related_ids = set()
         
-        for link in game.expansions:
-            if not link.inbound:
-                related_ids.add(link.id)
+        if not ignore_expansions:
+            for link in game.expansions:
+                if not link.inbound:
+                    related_ids.add(link.id)
         for link in game.implementations:
             related_ids.add(link.id)
         for link in game.integrations:
@@ -52,7 +53,7 @@ def get_related_games(game_id: int, client: BGGClient, collected_games: dict) ->
             
         # Recurse
         for rid in related_ids:
-            get_related_games(rid, client, collected_games)
+            get_related_games(rid, client, collected_games, ignore_expansions=ignore_expansions)
                 
     except BGGAPIError as e:
         log.error(f"Error fetching game {game_id}: {e}")
@@ -150,13 +151,14 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("game_id", type=int, help="The BGG ID of the starting game.")
+    parser.add_argument("--include-expansions", action="store_true", help="Include game expansions in the traversal.")
     args = parser.parse_args()
 
     client = BGGClient(api_token="YOUR_BGG_TOKEN")
 
     log.info(f"Starting traversal from game ID: {args.game_id}")
     collected_games = {}
-    get_related_games(args.game_id, client, collected_games)
+    get_related_games(args.game_id, client, collected_games, ignore_expansions=not args.include_expansions)
     
     # Filter out any None entries fromfailed fetches
     valid_games = [g for g in collected_games.values() if g is not None]

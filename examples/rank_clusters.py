@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--date", type=str, help="Date for ranking snapshot (YYYY-MM-DD). Defaults to yesterday.")
     parser.add_argument("--limit", type=int, default=100, help="Maximum number of clusters to list. Default 100.")
     parser.add_argument("--rank-limit", type=int, default=1000, help="Maximum rank to check. Default 1000.")
+    parser.add_argument("--include-expansions", action="store_true", help="Include game expansions in the traversal. By default, expansions are ignored.")
     args = parser.parse_args()
 
     # Determine date
@@ -117,7 +118,7 @@ def main():
         # Found a new game start
         collected_games = {}
         # We suppress logs for clarity, or user can enable debug
-        get_related_games(game_id, client, collected_games)
+        get_related_games(game_id, client, collected_games, ignore_expansions=not args.include_expansions)
         
         # Filter out failed fetches
         valid_games = [g for g in collected_games.values() if g is not None]
