@@ -59,6 +59,7 @@ def main():
         default=2,
         help="The number of rating pages to fetch for each game (100 ratings per page). Default is 2.",
     )
+    parser.add_argument("--sort-by-corr", action="store_true", help="Sort the correlation table by correlation coefficient descending.")
     args = parser.parse_args()
 
     client = BGGClient(api_token="YOUR_BGG_TOKEN")
@@ -105,6 +106,7 @@ def main():
 
     game_pairs = list(itertools.combinations(sorted(games, key=lambda x: x.id), 2))
     
+    results = []
     for g1, g2 in game_pairs:
         r1 = game_ratings[g1.id]
         r2 = game_ratings[g2.id]
@@ -112,18 +114,33 @@ def main():
         common_users = set(r1.keys()) & set(r2.keys())
         co_rater_count = len(common_users)
         
-        corr_str = "N/A"
-        p_val_str = "N/A"
+        correlation = None
+        p_value = None
         
         if co_rater_count > 1:
             try:
                 v1 = [r1[u] for u in common_users]
                 v2 = [r2[u] for u in common_users]
                 correlation, p_value = pearsonr(v1, v2)
-                corr_str = f"{correlation:.4f}"
-                p_val_str = f"{p_value:.4f}"
             except Exception as e:
                 log.debug(f"Correlation calculation failed for {g1.name} vs {g2.name}: {e}")
+
+        results.append({
+            'g1': g1,
+            'g2': g2,
+            'co_rater_count': co_rater_count,
+            'correlation': correlation,
+            'p_value': p_value
+        })
+
+    if args.sort_by_corr:
+        # Sort by correlation descending, placing None (N/A) at the end
+        results.sort(key=lambda x: (x['correlation'] is not None, x['correlation']), reverse=True)
+
+    for res in results:
+        g1, g2 = res['g1'], res['g2']
+        corr_str = f"{res['correlation']:.4f}" if res['correlation'] is not None else "N/A"
+        p_val_str = f"{res['p_value']:.4f}" if res['p_value'] is not None else "N/A"
 
         # Label with ID
         n1_label = f"{g1.name} ({g1.id})"
@@ -133,7 +150,7 @@ def main():
         n1 = (n1_label[:32] + '..') if len(n1_label) > 35 else n1_label
         n2 = (n2_label[:32] + '..') if len(n2_label) > 35 else n2_label
         
-        print(f"{n1:<35} | {n2:<35} | {co_rater_count:<10} | {corr_str:<7} | {p_val_str}")
+        print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str}")
 
 if __name__ == "__main__":
     main()
