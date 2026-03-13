@@ -99,7 +99,7 @@ def main():
 
     # Calculate Pairwise Correlations
     print("\n--- Pairwise Correlation Analysis ---")
-    header = f"{'Game A':<30} | {'Game B':<30} | {'Co-raters':<10} | {'Corr':<7} | {'p-value'}"
+    header = f"{'Game A (ID)':<35} | {'Game B (ID)':<35} | {'Co-raters':<10} | {'Corr':<7} | {'p-value'}"
     print(header)
     print("-" * len(header))
 
@@ -125,11 +125,15 @@ def main():
             except Exception as e:
                 log.debug(f"Correlation calculation failed for {g1.name} vs {g2.name}: {e}")
 
-        # Truncate names for table
-        n1 = (g1.name[:27] + '..') if len(g1.name) > 30 else g1.name
-        n2 = (g2.name[:27] + '..') if len(g2.name) > 30 else g2.name
+        # Label with ID
+        n1_label = f"{g1.name} ({g1.id})"
+        n2_label = f"{g2.name} ({g2.id})"
+
+        # Truncate labels for table
+        n1 = (n1_label[:32] + '..') if len(n1_label) > 35 else n1_label
+        n2 = (n2_label[:32] + '..') if len(n2_label) > 35 else n2_label
         
-        print(f"{n1:<30} | {n2:<30} | {co_rater_count:<10} | {corr_str:<7} | {p_val_str}")
+        print(f"{n1:<35} | {n2:<35} | {co_rater_count:<10} | {corr_str:<7} | {p_val_str}")
 
 if __name__ == "__main__":
     main()
