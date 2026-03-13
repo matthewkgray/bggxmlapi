@@ -60,6 +60,7 @@ def main():
         help="The number of rating pages to fetch for each game (100 ratings per page). Default is 2.",
     )
     parser.add_argument("--sort-by-corr", action="store_true", help="Sort the correlation table by correlation coefficient descending.")
+    parser.add_argument("--sort-by-coraters", action="store_true", help="Sort the correlation table by co-rater count descending.")
     args = parser.parse_args()
 
     client = BGGClient(api_token="YOUR_BGG_TOKEN")
@@ -136,6 +137,9 @@ def main():
     if args.sort_by_corr:
         # Sort by correlation descending, placing None (N/A) at the end
         results.sort(key=lambda x: (x['correlation'] is not None, x['correlation']), reverse=True)
+    elif args.sort_by_coraters:
+        # Sort by co-rater count descending
+        results.sort(key=lambda x: x['co_rater_count'], reverse=True)
 
     for res in results:
         g1, g2 = res['g1'], res['g2']
