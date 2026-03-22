@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--min-coraters", type=int, default=10, help="Minimum overlapping raters to show correlation. Default is 10.")
     parser.add_argument("--min-ratings", type=int, default=100, help="Minimum total ratings a game must have in the cache. Default is 100.")
     parser.add_argument("--confidence-threshold", type=float, default=0.5, help="Target correlation threshold to test against for confidence calculation. Default is 0.5.")
+    parser.add_argument("--preference-threshold", type=float, default=1.0, help="Minimum rating difference to be considered a strong preference. Default is 1.0.")
     parser.add_argument("--refresh", action="store_true", help="Allow fetching from network if data is missing or expired. Default is False (offline only).")
     args = parser.parse_args()
 
@@ -174,6 +175,7 @@ def main():
                     if not math.isnan(corr):
                         n = len(common_users)
                         conf_pct = 0.0
+                        pref_pct = 0.0
                         if n > 3:
                             # Test if magnitude of correlation is > threshold
                             z = np.arctanh(min(abs(corr), 0.9999)) # Prevent inf for r=1.0
@@ -182,15 +184,23 @@ def main():
                             z_stat = (z - z0) / se
                             conf_pct = norm.cdf(z_stat) * 100
                             
-                        correlations.append((corr, p_val, conf_pct, name1, name2, n, g1_id, g2_id))
+                        strong_preference_count = 0
+                        for r1_val, r2_val in zip(v1, v2):
+                            if abs(r1_val - r2_val) > args.preference_threshold:
+                                strong_preference_count += 1
+                        
+                        if n > 0:
+                            pref_pct = (strong_preference_count / n) * 100
+                            
+                        correlations.append((corr, p_val, conf_pct, pref_pct, name1, name2, n, g1_id, g2_id))
                 except Exception:
                     pass
 
     # Sort primarily by correlation descending
     correlations.sort(key=lambda x: x[0], reverse=True)
     
-    for corr, p_val, conf_pct, name1, name2, co_raters, g1_id, g2_id in correlations:
-        print(f"{corr:5.2f} (p={p_val:.4f}, conf>{args.confidence_threshold}={conf_pct:5.1f}%) : {name1} ({g1_id}) - {name2} ({g2_id}) ({co_raters} co-raters)")
+    for corr, p_val, conf_pct, pref_pct, name1, name2, co_raters, g1_id, g2_id in correlations:
+        print(f"{corr:5.2f} (p={p_val:.4f}, conf>{args.confidence_threshold}={conf_pct:5.1f}%, pref>{args.preference_threshold}={pref_pct:5.1f}%) : {name1} ({g1_id}) - {name2} ({g2_id}) ({co_raters} co-raters)")
 
     print("\nIncluded Games:")
     for gid in selected_gids:
