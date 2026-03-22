@@ -168,17 +168,17 @@ def main():
                 v1 = [r1[u] for u in common_users]
                 v2 = [r2[u] for u in common_users]
                 try:
-                    corr, _ = pearsonr(v1, v2)
+                    corr, p_val = pearsonr(v1, v2)
                     if not math.isnan(corr):
-                        correlations.append((corr, name1, name2, len(common_users)))
+                        correlations.append((corr, p_val, name1, name2, len(common_users)))
                 except Exception:
                     pass
 
     # Sort primarily by correlation descending
     correlations.sort(key=lambda x: x[0], reverse=True)
     
-    for corr, name1, name2, co_raters in correlations:
-        print(f"{corr:5.2f} : {name1} - {name2} ({co_raters} co-raters)")
+    for corr, p_val, name1, name2, co_raters in correlations:
+        print(f"{corr:5.2f} (p={p_val:.4f}) : {name1} - {name2} ({co_raters} co-raters)")
 
     print("\nIncluded Games:")
     for gid in selected_gids:
