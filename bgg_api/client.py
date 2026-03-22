@@ -28,6 +28,7 @@ class BGGClient:
         self,
         cache_dir: str = "~/.bgg_cache",
         cache_ttl: int = 604800,  # 7 days
+        rating_cache_ttl: int = 15552000, # 180 days (6 months)
         api_token: Optional[str] = None,
         max_retries: int = 10,
         initial_backoff: int = 2,
@@ -41,6 +42,7 @@ class BGGClient:
         Args:
             cache_dir (str): The directory to use for caching API responses.
             cache_ttl (int): The time-to-live for cached data in seconds.
+            rating_cache_ttl (int): The TTL for rating requests in seconds.
             api_token (str, optional): The BGG API token for authenticated requests.
             max_retries (int): Max number of retries for failed requests (e.g. 429, 202).
             initial_backoff (int): The initial delay in seconds for the first retry.
@@ -57,6 +59,9 @@ class BGGClient:
                 backend="filesystem",
                 cache_name=cache_key,
                 expire_after=cache_ttl,
+                urls_expire_after={
+                    "*ratingcomments=1*": rating_cache_ttl,
+                },
                 allowable_methods=('GET', 'POST'),
                 stale_if_error=True,
                 status_forcelist=[429, 500, 502, 503, 504],
