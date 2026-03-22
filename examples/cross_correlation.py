@@ -182,15 +182,15 @@ def main():
                             z_stat = (z - z0) / se
                             conf_pct = norm.cdf(z_stat) * 100
                             
-                        correlations.append((corr, p_val, conf_pct, name1, name2, n))
+                        correlations.append((corr, p_val, conf_pct, name1, name2, n, g1_id, g2_id))
                 except Exception:
                     pass
 
     # Sort primarily by correlation descending
     correlations.sort(key=lambda x: x[0], reverse=True)
     
-    for corr, p_val, conf_pct, name1, name2, co_raters in correlations:
-        print(f"{corr:5.2f} (p={p_val:.4f}, conf>{args.confidence_threshold}={conf_pct:5.1f}%) : {name1} - {name2} ({co_raters} co-raters)")
+    for corr, p_val, conf_pct, name1, name2, co_raters, g1_id, g2_id in correlations:
+        print(f"{corr:5.2f} (p={p_val:.4f}, conf>{args.confidence_threshold}={conf_pct:5.1f}%) : {name1} ({g1_id}) - {name2} ({g2_id}) ({co_raters} co-raters)")
 
     print("\nIncluded Games:")
     for gid in selected_gids:
