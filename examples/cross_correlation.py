@@ -134,33 +134,20 @@ def main():
     # Sort selected games by ID or name for the matrix
     selected_gids.sort(key=lambda x: game_names.get(x, str(x)))
 
-    # Print Matrix Header
-    print("\nCross-Correlation Matrix (overlapping raters >= {})".format(args.min_coraters))
-    name_width = 25
-    col_width = 10
+    # Compute and print correlations as a list
+    print(f"\nCross-Correlation List (overlapping raters >= {args.min_coraters})")
     
-    header = " " * name_width + "|"
-    for gid in selected_gids:
-        name = game_names.get(gid, str(gid))
-        short_name = (name[:col_width-2] + "..") if len(name) > col_width else name
-        header += "{:^{}}|".format(short_name, col_width)
-    print(header)
-    print("-" * len(header))
-
-    # Compute and print rows
-    for g1_id in selected_gids:
-        name = game_names.get(g1_id, str(g1_id))
-        short_name = (name[:name_width-2] + "..") if len(name) > name_width else name
-        row_str = "{:<{}}|".format(short_name, name_width)
-        
+    correlations = []
+    
+    for i, g1_id in enumerate(selected_gids):
         r1 = all_game_ratings[g1_id]
+        name1 = game_names.get(g1_id, str(g1_id))
         
-        for g2_id in selected_gids:
-            if g1_id == g2_id:
-                row_str += "{:^{}}|".format("1.00", col_width)
-                continue
-                
+        for j in range(i + 1, len(selected_gids)):
+            g2_id = selected_gids[j]
             r2 = all_game_ratings[g2_id]
+            name2 = game_names.get(g2_id, str(g2_id))
+            
             common_users = set(r1.keys()) & set(r2.keys())
             
             if len(common_users) >= args.min_coraters:
@@ -168,17 +155,22 @@ def main():
                 v2 = [r2[u] for u in common_users]
                 try:
                     corr, _ = pearsonr(v1, v2)
-                    row_str += "{:^{}.2f}|".format(corr, col_width)
+                    if not math.isnan(corr):
+                        correlations.append((corr, name1, name2, len(common_users)))
                 except Exception:
-                    row_str += "{:^{}}|".format("N/A", col_width)
-            else:
-                row_str += "{:^{}}|".format("-", col_width)
-        
-        print(row_str)
+                    pass
 
-    print("\nLegend:")
+    # Sort primarily by correlation descending
+    correlations.sort(key=lambda x: x[0], reverse=True)
+    
+    for corr, name1, name2, co_raters in correlations:
+        print(f"{corr:5.2f} : {name1} - {name2} ({co_raters} co-raters)")
+
+    print("\nIncluded Games:")
     for gid in selected_gids:
-        print(f"ID {gid}: {game_names.get(gid, 'Unknown')} ({len(all_game_ratings[gid])} ratings in cache)")
+        cached_count = len(all_game_ratings[gid])
+        total_count = game_total_ratings.get(gid, "Unknown")
+        print(f"ID {gid}: {game_names.get(gid, 'Unknown')} ({cached_count} / {total_count} ratings in cache)")
 
 if __name__ == "__main__":
     main()
