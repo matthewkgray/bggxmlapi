@@ -5,7 +5,7 @@ from lxml import etree
 import logging
 import math
 
-from .exceptions import BGGAPIError
+from .exceptions import BGGAPIError, BGGNetworkError
 
 if TYPE_CHECKING:
     from .client import BGGClient
@@ -623,9 +623,15 @@ class Ratings:
                 break
 
             log.debug(f"Fetching ratings page {page_num} for game {self._game.id}")
-            response_xml = self._game._client._get_game_ratings_page(
-                self._game.id, page=page_num
-            )
+            try:
+                response_xml = self._game._client._get_game_ratings_page(
+                    self._game.id, page=page_num
+                )
+            except BGGNetworkError:
+                if self._game._client.only_use_cache:
+                    log.info(f"Offline mode: stop fetching ratings for game {self._game.id} at page {page_num} (not in cache)")
+                    break
+                raise
 
             self._game._set_xml_data(response_xml)
 

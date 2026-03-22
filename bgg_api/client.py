@@ -110,7 +110,8 @@ class BGGClient:
                 time.sleep(sleep_time)
             self._last_request_time = time.monotonic()
 
-        for attempt in range(self.max_retries):
+        max_attempts = 1 if self.only_use_cache else self.max_retries
+        for attempt in range(max_attempts):
             try:
                 get_kwargs = {"params": params, "headers": headers}
                 if self.only_use_cache:
@@ -121,8 +122,9 @@ class BGGClient:
 
                 response = self.session.get(url, **get_kwargs)
                 
-                if self.only_use_cache and response.status_code == 504:
-                     raise BGGNetworkError(f"Offline mode: Request for {url} with params {params} is not in cache (504).")
+                # In offline mode, we MUST have a cached response.
+                if self.only_use_cache and not getattr(response, "from_cache", False):
+                    raise BGGNetworkError(f"Offline mode: Request for {url} with params {params} is not in cache.")
 
                 # Handle transient errors with exponential backoff
                 if response.status_code == 202:
