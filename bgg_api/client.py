@@ -35,6 +35,7 @@ class BGGClient:
         backoff_factor: float = 2.0,
         backoff_decay: float = 0.95,
         rate_limit_qps: int = 5,
+        only_use_cache: bool = False,
     ):
         """
         Initializes the BGGClient.
@@ -49,6 +50,7 @@ class BGGClient:
             backoff_factor (float): The factor by which the backoff delay increases.
             backoff_decay (float): The factor by which the backoff delay decreases after a success.
             rate_limit_qps (int): The number of queries per second to throttle requests to.
+            only_use_cache (bool): If True, only use cached data and never fetch from the network.
         """
         cache_path = Path(cache_dir).expanduser()
         cache_key = str(cache_path)
@@ -78,6 +80,7 @@ class BGGClient:
         self.backoff_factor = backoff_factor
         self.backoff_decay = backoff_decay
         self.rate_limit_qps = rate_limit_qps
+        self.only_use_cache = only_use_cache
         self._current_backoff = initial_backoff
         self._last_request_time = 0
 
@@ -108,9 +111,17 @@ class BGGClient:
             self._last_request_time = time.monotonic()
 
 
+        if self.only_use_cache and not is_cached:
+            raise BGGNetworkError(f"Offline mode: Request for {url} with params {params} is not in cache.")
+
         for attempt in range(self.max_retries):
             try:
-                response = self.session.get(url, params=params, headers=headers)
+                get_kwargs = {"params": params, "headers": headers}
+                if self.only_use_cache:
+                    # expire_after=-1 means 'never expire' (use stale if exists)
+                    get_kwargs["expire_after"] = -1
+
+                response = self.session.get(url, **get_kwargs)
 
                 # Handle transient errors with exponential backoff
                 if response.status_code == 202:

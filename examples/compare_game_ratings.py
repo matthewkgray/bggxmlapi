@@ -8,12 +8,15 @@ from bgg_api import BGGClient, BGGAPIError
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: float):
+def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: float, offline: bool):
     """
     Fetches ratings for two games, compares the user ratings, and
     provides a summary of preferences.
     """
-    client = BGGClient(api_token="YOUR_BGG_TOKEN")
+    client = BGGClient(
+        api_token="YOUR_BGG_TOKEN",
+        only_use_cache=offline
+    )
 
     try:
         log.info(f"Fetching details for Game 1 (ID: {game1_id}) and Game 2 (ID: {game2_id})...")
@@ -157,9 +160,14 @@ fetching up to 500 ratings for each to find common raters and analyze their pref
         default=1.0,
         help="The threshold for a 'strong preference' (difference in points). Default is 1.0.",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Only use cached data and never fetch from the network. Default is False.",
+    )
     args = parser.parse_args()
 
-    analyze_game_ratings(args.game1_id, args.game2_id, args.pages, args.preference_threshold)
+    analyze_game_ratings(args.game1_id, args.game2_id, args.pages, args.preference_threshold, args.offline)
 
 if __name__ == "__main__":
     main()
