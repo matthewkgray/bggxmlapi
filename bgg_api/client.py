@@ -10,8 +10,8 @@ import requests_cache
 import urllib3
 
 # Suppress warnings from BGG API returning both Content-Length and Transfer-Encoding
-# These are logged by urllib3.connectionpool, not emitted as Python warnings
-logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+# These are logged by urllib3 modules during cache deserialization
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 from .models import Game, Plays, User
 from .snapshot import RankSnapshot

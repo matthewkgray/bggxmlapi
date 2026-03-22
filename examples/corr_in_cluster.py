@@ -70,6 +70,7 @@ def main():
         help="Comma-separated thresholds for graph edge styles (bold, solid, dashed, dotted). Default is 0.8,0.7,0.6,0.5.",
     )
     parser.add_argument("--offline", action="store_true", help="Run in strict offline mode using only cached data.")
+    parser.add_argument("--preference-threshold", type=float, default=1.0, help="Minimum rating difference to be considered a strong preference. Default is 1.0.")
     args = parser.parse_args()
 
     # Parse linethresh
@@ -119,7 +120,7 @@ def main():
 
     # Calculate Pairwise Correlations
     print("\n--- Pairwise Correlation Analysis ---")
-    header = f"{'Game A (ID)':<35} | {'Game B (ID)':<35} | {'Co-raters':<10} | {'Corr':<7} | {'p-value'}"
+    header = f"{'Game A (ID)':<35} | {'Game B (ID)':<35} | {'Co-raters':<10} | {'Corr':<7} | {'p-value':<7} | {'Pref > {}':<9}".format(args.preference_threshold)
     print(header)
     print("-" * len(header))
 
@@ -135,12 +136,20 @@ def main():
         
         correlation = None
         p_value = None
+        strong_preference_count = 0
+        pref_pct = 0.0
         
         if co_rater_count > 1:
             try:
                 v1 = [r1[u] for u in common_users]
                 v2 = [r2[u] for u in common_users]
                 correlation, p_value = pearsonr(v1, v2)
+                
+                for r1_val, r2_val in zip(v1, v2):
+                    if abs(r1_val - r2_val) > args.preference_threshold:
+                        strong_preference_count += 1
+                        
+                pref_pct = (strong_preference_count / co_rater_count) * 100
             except Exception as e:
                 log.debug(f"Correlation calculation failed for {g1.name} vs {g2.name}: {e}")
 
@@ -149,7 +158,8 @@ def main():
             'g2': g2,
             'co_rater_count': co_rater_count,
             'correlation': correlation,
-            'p_value': p_value
+            'p_value': p_value,
+            'pref_pct': pref_pct
         })
 
     if args.sort_by_corr:
@@ -163,6 +173,7 @@ def main():
         g1, g2 = res['g1'], res['g2']
         corr_str = f"{res['correlation']:.4f}" if res['correlation'] is not None else "N/A"
         p_val_str = f"{res['p_value']:.4f}" if res['p_value'] is not None else "N/A"
+        pref_str = f"{res['pref_pct']:.1f}%" if res['co_rater_count'] > 1 else "N/A"
 
         # Label with ID
         n1_label = f"{g1.name} ({g1.id})"
@@ -172,7 +183,7 @@ def main():
         n1 = (n1_label[:32] + '..') if len(n1_label) > 35 else n1_label
         n2 = (n2_label[:32] + '..') if len(n2_label) > 35 else n2_label
         
-        print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str}")
+        print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str:<7} | {pref_str:<9}")
 
     # Reclustering (Transitive Agglomeration)
     print(f"\n--- Reclustered Groups (Correlation > {args.thresh} and Co-raters >= {args.min_coraters}) ---")
