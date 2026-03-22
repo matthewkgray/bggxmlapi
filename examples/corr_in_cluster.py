@@ -1,7 +1,9 @@
 import argparse
 import logging
 import itertools
-from scipy.stats import pearsonr
+import math
+import numpy as np
+from scipy.stats import pearsonr, norm
 from bgg_api import BGGClient, BGGAPIError
 
 # Configure logging
@@ -70,6 +72,7 @@ def main():
         help="Comma-separated thresholds for graph edge styles (bold, solid, dashed, dotted). Default is 0.8,0.7,0.6,0.5.",
     )
     parser.add_argument("--offline", action="store_true", help="Run in strict offline mode using only cached data.")
+    parser.add_argument("--confidence-threshold", type=float, default=0.5, help="Target correlation threshold to test against for confidence calculation. Default is 0.5.")
     parser.add_argument("--preference-threshold", type=float, default=1.0, help="Minimum rating difference to be considered a strong preference. Default is 1.0.")
     args = parser.parse_args()
 
@@ -120,7 +123,7 @@ def main():
 
     # Calculate Pairwise Correlations
     print("\n--- Pairwise Correlation Analysis ---")
-    header = f"{'Game A (ID)':<35} | {'Game B (ID)':<35} | {'Co-raters':<10} | {'Corr':<7} | {'p-value':<7} | {'Pref > {}':<9}".format(args.preference_threshold)
+    header = f"{'Game A (ID)':<35} | {'Game B (ID)':<35} | {'Co-raters':<10} | {'Corr':<7} | {'p-value':<7} | {'Conf>'+str(args.confidence_threshold):<9} | {'Pref>'+str(args.preference_threshold):<9}"
     print(header)
     print("-" * len(header))
 
@@ -138,12 +141,21 @@ def main():
         p_value = None
         strong_preference_count = 0
         pref_pct = 0.0
+        conf_pct = 0.0
         
         if co_rater_count > 1:
             try:
                 v1 = [r1[u] for u in common_users]
                 v2 = [r2[u] for u in common_users]
                 correlation, p_value = pearsonr(v1, v2)
+                
+                if not math.isnan(correlation):
+                    if co_rater_count > 3:
+                        z = np.arctanh(min(abs(correlation), 0.9999))
+                        z0 = np.arctanh(args.confidence_threshold)
+                        se = 1.0 / np.sqrt(co_rater_count - 3)
+                        z_stat = (z - z0) / se
+                        conf_pct = norm.cdf(z_stat) * 100
                 
                 for r1_val, r2_val in zip(v1, v2):
                     if abs(r1_val - r2_val) > args.preference_threshold:
@@ -159,6 +171,7 @@ def main():
             'co_rater_count': co_rater_count,
             'correlation': correlation,
             'p_value': p_value,
+            'conf_pct': conf_pct,
             'pref_pct': pref_pct
         })
 
@@ -173,6 +186,7 @@ def main():
         g1, g2 = res['g1'], res['g2']
         corr_str = f"{res['correlation']:.4f}" if res['correlation'] is not None else "N/A"
         p_val_str = f"{res['p_value']:.4f}" if res['p_value'] is not None else "N/A"
+        conf_str = f"{res['conf_pct']:.1f}%" if res['co_rater_count'] > 3 and res['correlation'] is not None else "N/A"
         pref_str = f"{res['pref_pct']:.1f}%" if res['co_rater_count'] > 1 else "N/A"
 
         # Label with ID
@@ -183,7 +197,7 @@ def main():
         n1 = (n1_label[:32] + '..') if len(n1_label) > 35 else n1_label
         n2 = (n2_label[:32] + '..') if len(n2_label) > 35 else n2_label
         
-        print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str:<7} | {pref_str:<9}")
+        print(f"{n1:<35} | {n2:<35} | {res['co_rater_count']:<10} | {corr_str:<7} | {p_val_str:<7} | {conf_str:<9} | {pref_str:<9}")
 
     # Reclustering (Transitive Agglomeration)
     print(f"\n--- Reclustered Groups (Correlation > {args.thresh} and Co-raters >= {args.min_coraters}) ---")
