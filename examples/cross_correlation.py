@@ -4,7 +4,8 @@ import math
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from lxml import etree
-from scipy.stats import pearsonr
+import numpy as np
+from scipy.stats import pearsonr, norm
 import requests_cache
 from bgg_api import BGGClient
 
@@ -27,6 +28,7 @@ def main():
     )
     parser.add_argument("--min-coraters", type=int, default=10, help="Minimum overlapping raters to show correlation. Default is 10.")
     parser.add_argument("--min-ratings", type=int, default=100, help="Minimum total ratings a game must have in the cache. Default is 100.")
+    parser.add_argument("--confidence-threshold", type=float, default=0.5, help="Target correlation threshold to test against for confidence calculation. Default is 0.5.")
     parser.add_argument("--refresh", action="store_true", help="Allow fetching from network if data is missing or expired. Default is False (offline only).")
     args = parser.parse_args()
 
@@ -170,15 +172,25 @@ def main():
                 try:
                     corr, p_val = pearsonr(v1, v2)
                     if not math.isnan(corr):
-                        correlations.append((corr, p_val, name1, name2, len(common_users)))
+                        n = len(common_users)
+                        conf_pct = 0.0
+                        if n > 3:
+                            # Test if magnitude of correlation is > threshold
+                            z = np.arctanh(min(abs(corr), 0.9999)) # Prevent inf for r=1.0
+                            z0 = np.arctanh(args.confidence_threshold)
+                            se = 1.0 / np.sqrt(n - 3)
+                            z_stat = (z - z0) / se
+                            conf_pct = norm.cdf(z_stat) * 100
+                            
+                        correlations.append((corr, p_val, conf_pct, name1, name2, n))
                 except Exception:
                     pass
 
     # Sort primarily by correlation descending
     correlations.sort(key=lambda x: x[0], reverse=True)
     
-    for corr, p_val, name1, name2, co_raters in correlations:
-        print(f"{corr:5.2f} (p={p_val:.4f}) : {name1} - {name2} ({co_raters} co-raters)")
+    for corr, p_val, conf_pct, name1, name2, co_raters in correlations:
+        print(f"{corr:5.2f} (p={p_val:.4f}, conf>{args.confidence_threshold}={conf_pct:5.1f}%) : {name1} - {name2} ({co_raters} co-raters)")
 
     print("\nIncluded Games:")
     for gid in selected_gids:
