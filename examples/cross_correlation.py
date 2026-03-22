@@ -27,19 +27,25 @@ def main():
     )
     parser.add_argument("--min-coraters", type=int, default=10, help="Minimum overlapping raters to show correlation. Default is 10.")
     parser.add_argument("--min-ratings", type=int, default=100, help="Minimum total ratings a game must have in the cache. Default is 100.")
+    parser.add_argument("--refresh", action="store_true", help="Allow fetching from network if data is missing or expired. Default is False (offline only).")
     args = parser.parse_args()
 
-    client = BGGClient()
+    # Initialize with user's token and default to offline mode
+    client = BGGClient(
+        api_token="YOUR_BGG_TOKEN",
+        only_use_cache=not args.refresh
+    )
     session = client.session
     if not isinstance(session, requests_cache.CachedSession):
         log.error("BGGClient is not using a CachedSession. Cannot scan cache.")
         return
 
-    log.info("Scanning cache for game data and ratings...")
+    log.info("Scanning cache for game data and ratings (Offline Mode: {})...".format(not args.refresh))
     
     game_names = {} # id -> name
     game_total_ratings = {} # id -> total usersrated
     game_cached_pages = {} # id -> set of page numbers
+    game_ratings_data = {} # id -> {username: rating}
     
     # Iterate through cache
     for response in session.cache.responses.values():
@@ -57,17 +63,31 @@ def main():
         if not ids:
             continue
         
-        # Rating pages usually have ratingcomments=1 and single id
-        if params.get("ratingcomments") == ["1"]:
-            gid = int(ids[0])
-            page = int(params.get("page", ["1"])[0])
-            if gid not in game_cached_pages:
-                game_cached_pages[gid] = set()
-            game_cached_pages[gid].add(page)
-        else:
-            # Metadata request (stats=1)
-            try:
-                root = etree.fromstring(response.content)
+        try:
+            root = etree.fromstring(response.content)
+            # Rating pages usually have ratingcomments=1 and single id
+            if params.get("ratingcomments") == ["1"]:
+                gid = int(ids[0])
+                page = int(params.get("page", ["1"])[0])
+                if gid not in game_cached_pages:
+                    game_cached_pages[gid] = set()
+                    game_ratings_data[gid] = {}
+                game_cached_pages[gid].add(page)
+                
+                # Extract ratings directly from this cached response
+                for item in root.findall("item"):
+                    comments = item.find("comments")
+                    if comments is not None:
+                        for comment in comments.findall("comment"):
+                            username = comment.get("username")
+                            rating = comment.get("rating")
+                            if username and rating and username != "N/A":
+                                try:
+                                    game_ratings_data[gid][username] = float(rating)
+                                except ValueError:
+                                    continue
+            else:
+                # Metadata request (stats=1)
                 for item in root.findall("item"):
                     gid = int(item.get("id"))
                     name_el = item.find("name[@type='primary']")
@@ -77,20 +97,21 @@ def main():
                     stats_el = item.find("statistics/ratings/usersrated")
                     if stats_el is not None:
                         game_total_ratings[gid] = int(stats_el.get("value"))
-            except Exception:
-                continue
+        except Exception:
+            continue
 
     # Identify games to include
     selected_gids = []
-    for gid, pages in game_cached_pages.items():
-        total_in_cache = len(pages) * 100
+    for gid in game_ratings_data.keys():
+        pages = game_cached_pages.get(gid, set())
+        total_in_cache = len(game_ratings_data[gid])
         
         # Determine if we have "full" data
         is_full = False
         if gid in game_total_ratings:
             total_expected = game_total_ratings[gid]
-            # Max pages BGG usually serves is 100? Actually lets just check if we have enough
-            if len(pages) >= math.ceil(total_expected / 100) or len(pages) >= 100:
+            # If we have matches for all expected ratings, or we have 100 pages
+            if total_in_cache >= total_expected or len(pages) >= 100:
                 is_full = True
         
         if args.mode == "full" and not is_full:
@@ -107,17 +128,8 @@ def main():
 
     log.info(f"Computing correlations for {len(selected_gids)} games...")
 
-    # Load all ratings for selected games
-    all_game_ratings = {} # gid -> {username: rating}
-    for gid in selected_gids:
-        game = client.get_game(gid)
-        # We know they are in cache, fetch_more will use cache
-        pages = sorted(list(game_cached_pages[gid]))
-        max_page = max(pages)
-        game.ratings.fetch_more(num_pages=max_page)
-        
-        ratings = {r.username: r.rating for r in game.ratings._ratings if r.username != "N/A"}
-        all_game_ratings[gid] = ratings
+    # Load all ratings for selected games (already in game_ratings_data)
+    all_game_ratings = {gid: game_ratings_data[gid] for gid in selected_gids}
 
     # Sort selected games by ID or name for the matrix
     selected_gids.sort(key=lambda x: game_names.get(x, str(x)))
