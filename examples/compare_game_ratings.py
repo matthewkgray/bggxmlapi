@@ -8,7 +8,7 @@ from bgg_api import BGGClient, BGGAPIError
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
+def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: float):
     """
     Fetches ratings for two games, compares the user ratings, and
     provides a summary of preferences.
@@ -40,7 +40,7 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
 
         # Find common raters
         common_raters = set(game1_ratings.keys()) & set(game2_ratings.keys())
-        log.info(f"\\nFound {len(common_raters)} users who rated both games ({len(game1_ratings)} and {len(game2_ratings)} of the games individually).")
+        log.info(f"\nFound {len(common_raters)} users who rated both games ({len(game1_ratings)} and {len(game2_ratings)} of the games individually).")
 
         if not common_raters:
             log.warning("No common raters found with the specified number of pages. Try increasing the page count.")
@@ -49,6 +49,8 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
         # Analyze preferences of common raters
         prefer_game1 = 0
         prefer_game2 = 0
+        strong_prefer_game1 = 0
+        strong_prefer_game2 = 0
         no_preference = 0
         total_rating_game1 = 0
         total_rating_game2 = 0
@@ -58,18 +60,26 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int):
             rating2 = game2_ratings[user]
             total_rating_game1 += rating1
             total_rating_game2 += rating2
+            
+            diff = rating1 - rating2
             if rating1 > rating2:
                 prefer_game1 += 1
+                if diff > pref_thresh:
+                    strong_prefer_game1 += 1
             elif rating2 > rating1:
                 prefer_game2 += 1
+                if (-diff) > pref_thresh:
+                    strong_prefer_game2 += 1
             else:
                 no_preference += 1
 
         # --- Analysis of users who rated both games ---
-        print("\\n--- Analysis of Common Raters ---")
+        print("\n--- Analysis of Common Raters ---")
         print(f"Total users who rated both: {len(common_raters)}")
         print(f"Users who prefer '{game1.name}': {prefer_game1} ({prefer_game1/len(common_raters):.1%})")
+        print(f"  - Strong preference (>{pref_thresh} pts): {strong_prefer_game1} ({strong_prefer_game1/len(common_raters):.1%})")
         print(f"Users who prefer '{game2.name}': {prefer_game2} ({prefer_game2/len(common_raters):.1%})")
+        print(f"  - Strong preference (>{pref_thresh} pts): {strong_prefer_game2} ({strong_prefer_game2/len(common_raters):.1%})")
         print(f"Users with no preference (same rating): {no_preference} ({no_preference/len(common_raters):.1%})")
         avg1 = total_rating_game1/len(common_raters)
         avg2 = total_rating_game2/len(common_raters)
@@ -141,9 +151,15 @@ fetching up to 500 ratings for each to find common raters and analyze their pref
         default=2,
         help="The number of rating pages to fetch for each game (100 ratings per page). Default is 2.",
     )
+    parser.add_argument(
+        "--preference-threshold",
+        type=float,
+        default=1.0,
+        help="The threshold for a 'strong preference' (difference in points). Default is 1.0.",
+    )
     args = parser.parse_args()
 
-    analyze_game_ratings(args.game1_id, args.game2_id, args.pages)
+    analyze_game_ratings(args.game1_id, args.game2_id, args.pages, args.preference_threshold)
 
 if __name__ == "__main__":
     main()
