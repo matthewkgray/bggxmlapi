@@ -84,6 +84,10 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: 
         print(f"Users who prefer '{game2.name}': {prefer_game2} ({prefer_game2/len(common_raters):.1%})")
         print(f"  - Strong preference (>{pref_thresh} pts): {strong_prefer_game2} ({strong_prefer_game2/len(common_raters):.1%})")
         print(f"Users with no preference (same rating): {no_preference} ({no_preference/len(common_raters):.1%})")
+        
+        # Combined strong preference
+        any_strong = strong_prefer_game1 + strong_prefer_game2
+        print(f"Users with strong preference for EITHER (>{pref_thresh} pts): {any_strong} ({any_strong/len(common_raters):.1%})")
         avg1 = total_rating_game1/len(common_raters)
         avg2 = total_rating_game2/len(common_raters)
         print(f"Average rating for '{game1.name}' among these users: {avg1:.2f}")
