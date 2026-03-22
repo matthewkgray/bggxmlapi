@@ -7,6 +7,10 @@ import time
 import logging
 
 import requests_cache
+import urllib3
+
+# Suppress warnings from BGG API returning both Content-Length and Transfer-Encoding
+urllib3.disable_warnings(urllib3.exceptions.HTTPWarning)
 
 from .models import Game, Plays, User
 from .snapshot import RankSnapshot
