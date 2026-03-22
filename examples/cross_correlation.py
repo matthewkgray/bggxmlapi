@@ -76,8 +76,20 @@ def main():
                 
                 # Extract ratings directly from this cached response
                 for item in root.findall("item"):
+                    if gid not in game_names:
+                        name_el = item.find("name[@type='primary']")
+                        if name_el is not None:
+                            game_names[gid] = name_el.get("value")
+                            
                     comments = item.find("comments")
                     if comments is not None:
+                        total_items_str = comments.get("totalitems")
+                        if total_items_str and gid not in game_total_ratings:
+                            try:
+                                game_total_ratings[gid] = int(total_items_str)
+                            except ValueError:
+                                pass
+                                
                         for comment in comments.findall("comment"):
                             username = comment.get("username")
                             rating = comment.get("rating")
@@ -90,13 +102,15 @@ def main():
                 # Metadata request (stats=1)
                 for item in root.findall("item"):
                     gid = int(item.get("id"))
-                    name_el = item.find("name[@type='primary']")
-                    if name_el is not None:
-                        game_names[gid] = name_el.get("value")
+                    if gid not in game_names:
+                        name_el = item.find("name[@type='primary']")
+                        if name_el is not None:
+                            game_names[gid] = name_el.get("value")
                     
-                    stats_el = item.find("statistics/ratings/usersrated")
-                    if stats_el is not None:
-                        game_total_ratings[gid] = int(stats_el.get("value"))
+                    if gid not in game_total_ratings:
+                        stats_el = item.find("statistics/ratings/usersrated")
+                        if stats_el is not None:
+                            game_total_ratings[gid] = int(stats_el.get("value"))
         except Exception:
             continue
 
@@ -110,8 +124,8 @@ def main():
         is_full = False
         if gid in game_total_ratings:
             total_expected = game_total_ratings[gid]
-            # If we have matches for all expected ratings, or we have 100 pages
-            if total_in_cache >= total_expected or len(pages) >= 100:
+            # If we have matches for ~all expected ratings, or we have 100 pages
+            if total_in_cache >= (total_expected * 0.95) or len(pages) >= 100:
                 is_full = True
         
         if args.mode == "full" and not is_full:
