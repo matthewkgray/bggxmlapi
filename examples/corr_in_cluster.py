@@ -69,6 +69,7 @@ def main():
         default="0.8,0.7,0.6,0.5",
         help="Comma-separated thresholds for graph edge styles (bold, solid, dashed, dotted). Default is 0.8,0.7,0.6,0.5.",
     )
+    parser.add_argument("--offline", action="store_true", help="Run in strict offline mode using only cached data.")
     args = parser.parse_args()
 
     # Parse linethresh
@@ -80,7 +81,7 @@ def main():
         log.error(f"Invalid linethresh format: {e}. Using defaults.")
         l_thresh = [0.8, 0.7, 0.6, 0.5]
 
-    client = BGGClient(api_token="YOUR_BGG_TOKEN")
+    client = BGGClient(api_token="YOUR_BGG_TOKEN", only_use_cache=args.offline)
 
     log.info(f"Finding cluster starting from game ID: {args.game_id}")
     collected_games_map = {}
