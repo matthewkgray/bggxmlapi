@@ -113,7 +113,6 @@ class BGGClient:
                 sleep_time = min_interval - elapsed
                 log.debug(f"Throttling request. Sleeping for {sleep_time:.2f}s")
                 time.sleep(sleep_time)
-            self._last_request_time = time.monotonic()
 
         max_attempts = 1 if self.only_use_cache else self.max_retries
         for attempt in range(max_attempts):
@@ -126,6 +125,10 @@ class BGGClient:
                     get_kwargs["only_if_cached"] = True
 
                 response = self.session.get(url, **get_kwargs)
+                
+                # Update last request time for rate limiting, but only if we hit the network
+                if not getattr(response, "from_cache", False):
+                    self._last_request_time = time.monotonic()
                 
                 # In offline mode, we MUST have a cached response.
                 if self.only_use_cache and not getattr(response, "from_cache", False):
