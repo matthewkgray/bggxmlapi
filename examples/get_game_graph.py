@@ -4,7 +4,7 @@ from bgg_api import BGGClient, BGGAPIError
 
 # Configure logging
 log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
 def get_related_games(game_id: int, client: BGGClient, collected_games: dict, ignore_expansions: bool = True) -> None:
     """

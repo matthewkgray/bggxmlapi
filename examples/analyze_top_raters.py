@@ -8,7 +8,7 @@ from bgg_api import BGGClient, BGGAPIError, BGGRequestQueued
 
 # Configure logging
 log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
 def analyze_top_raters(game_id: int, sample_size: int, max_pages: int, seed: int):
     # backoff_decay=0.5 allows faster recovery after a success

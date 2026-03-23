@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 # Set level to WARNING to avoid chatty logs from get_game_graph traversal by default, 
 # or keep INFO if user wants to see progress. The user asked for a list output, 
 # so we typically want clean stdout.
-logging.basicConfig(level=logging.WARNING, format="[%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
 import textwrap
 
