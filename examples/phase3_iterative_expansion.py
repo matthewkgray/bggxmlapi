@@ -173,7 +173,10 @@ def find_worst_predicted_games(cohort_ratings, bgg_averages, validation_games, g
     for gid in validation_games:
         if gid in game_avg_rating:
             valid_gids.append(gid)
-            y_cohort.append(np.mean(game_avg_rating[gid]))
+            # Add bayesian smoothing toward 5.5 with weight of 1 rating
+            vals = game_avg_rating[gid]
+            smoothed_avg = (sum(vals) + 5.5) / (len(vals) + 1)
+            y_cohort.append(smoothed_avg)
             y_bgg.append(bgg_averages[gid])
             
     if len(y_cohort) < 5:
@@ -195,7 +198,7 @@ def find_worst_predicted_games(cohort_ratings, bgg_averages, validation_games, g
         if users_count < 2:
              users_count = 2 # Prevent log mapping 1 to 0 completely removing the score
              
-        weighted_error = residual * np.log10(users_count)
+        weighted_error = residual * np.sqrt(users_count)
         
         worst_games.append({
             "gid": gid,
@@ -227,12 +230,13 @@ def main():
     parser.add_argument("--greedy", action="store_true", help="Find user with highest marginal improvement (Greedy selection)")
     parser.add_argument("--next-top", action="store_true", help="Just pick the highest scoring Phase 1 candidate without marginal test")
     parser.add_argument("--find-worst-game", action="store_true", help="Find the game with the easiest BGG prediction error to correct weighted by usersrated")
+    parser.add_argument("--prune-cohort", action="store_true", help="Find the best subset of the current downloaded cohort to maximize correlation")
     parser.add_argument("--min-games", type=int, default=50, help="Min validation games rated by candidate to test")
     parser.add_argument("--api-token", default="YOUR_BGG_TOKEN", help="BGG API Token")
     args = parser.parse_args()
     
-    if not any([args.greedy, args.next_top, args.find_worst_game]):
-        log.error("Please specify either --greedy, --next-top, or --find-worst-game")
+    if not any([args.greedy, args.next_top, args.find_worst_game, args.prune_cohort]):
+        log.error("Please specify either --greedy, --next-top, --find-worst-game, or --prune-cohort")
         return
 
     # Load cache
@@ -258,6 +262,44 @@ def main():
 
     if args.find_worst_game:
         find_worst_predicted_games(dense_cohort_collections, bgg_averages, validation_games, game_usersrated, game_names)
+        return
+
+    if args.prune_cohort:
+        log.info("Pruning cohort to find optimal subset of downloaded users...")
+        best_subset = []
+        best_subset_corr = -1.0
+        
+        # Simple greedy forward selection for the subset
+        remaining_users = list(dense_cohort_collections.keys())
+        current_subset_ratings = {}
+        
+        while remaining_users:
+            best_user_to_add = None
+            best_improvement = -1.0
+            
+            for u in remaining_users:
+                temp_subset = {**current_subset_ratings, u: dense_cohort_collections[u]}
+                corr = evaluate_cohort(temp_subset, bgg_averages, validation_games)
+                if corr > best_subset_corr:
+                    if corr > best_improvement:
+                        best_improvement = corr
+                        best_user_to_add = u
+            
+            if best_user_to_add:
+                best_subset_corr = best_improvement
+                best_subset.append(best_user_to_add)
+                current_subset_ratings[best_user_to_add] = dense_cohort_collections[best_user_to_add]
+                remaining_users.remove(best_user_to_add)
+                log.info(f"  Added {best_user_to_add:20s} | New Subset Corr: {best_subset_corr:.4f} (Size: {len(best_subset)})")
+            else:
+                break
+        
+        print("\n==================================")
+        print("Optimal Cohort Subset Found")
+        print("==================================")
+        print(f"Final Count: {len(best_subset)}")
+        print(f"Correlation: {best_subset_corr:.4f}")
+        print(f"Users: {', '.join(best_subset)}")
         return
 
     # Prepare candidate pool
