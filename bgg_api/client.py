@@ -170,9 +170,10 @@ class BGGClient:
                         self.initial_backoff, self._current_backoff * self.backoff_decay
                     )
                     if old_backoff != self._current_backoff:
-                        log.info(f"Request successful. Decaying backoff from {old_backoff:.2f}s to {self._current_backoff:.2f}s")
+                        next_throttle = self._current_backoff / self.rate_limit_qps if self.rate_limit_qps > 0 else 0
+                        log.info(f"Request successful for {url} {params}. Decaying error backoff to {self._current_backoff:.2f}s (Next throttle wait: {next_throttle:.2f}s)")
                     else:
-                        log.info(f"Request successful for {url}")
+                        log.info(f"Request successful for {url} {params}")
                 return xml_root
 
             except etree.XMLSyntaxError as e:
