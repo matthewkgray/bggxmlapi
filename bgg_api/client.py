@@ -103,7 +103,10 @@ class BGGClient:
             req = requests.Request("GET", url, params=params, headers=headers)
             prepped = self.session.prepare_request(req)
             cache_key = self.session.cache.create_key(prepped)
-            is_cached = self.session.cache.contains(key=cache_key)
+            # contains() returns True even if the cached item is expired. We must explicitly check it.
+            cache_resp = self.session.cache.get_response(cache_key)
+            if cache_resp is not None and getattr(cache_resp, "is_expired", False) is False:
+                is_cached = True
 
         if not is_cached and self.rate_limit_qps > 0 and not self.only_use_cache:
             min_interval = self._current_backoff / self.rate_limit_qps
