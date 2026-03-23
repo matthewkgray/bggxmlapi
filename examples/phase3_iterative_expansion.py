@@ -72,8 +72,10 @@ def load_cached_data(session):
     and /collection (dense downloaded cohorts).
     """
     game_bgg_average = {}
+    game_usersrated = {}
     sparse_user_ratings = defaultdict(dict)
     downloaded_collections = defaultdict(dict)
+    game_names = {}
     
     log.info("Parsing cache. This may take a moment...")
     
@@ -95,9 +97,20 @@ def load_cached_data(session):
                 if params.get("stats") == ["1"]:
                     for item in root.findall("item"):
                         gid = int(item.get("id"))
+                        name_el = item.find("name[@type='primary']")
+                        if name_el is not None:
+                            game_names[gid] = name_el.get("value")
+                            
                         stats_el = item.find("statistics/ratings/average")
                         if stats_el is not None:
                             game_bgg_average[gid] = float(stats_el.get("value"))
+                        
+                        usersrated_el = item.find("statistics/ratings/usersrated")
+                        if usersrated_el is not None:
+                            try:
+                                game_usersrated[gid] = int(usersrated_el.get("value"))
+                            except ValueError:
+                                game_usersrated[gid] = 1
                 elif params.get("ratingcomments") == ["1"]:
                     gid = int(ids[0])
                     for item in root.findall("item"):
@@ -138,25 +151,93 @@ def load_cached_data(session):
         except Exception:
             pass
             
-    return game_bgg_average, sparse_user_ratings, downloaded_collections
+    return game_bgg_average, sparse_user_ratings, downloaded_collections, game_usersrated, game_names
 
+def find_worst_predicted_games(cohort_ratings, bgg_averages, validation_games, game_usersrated, game_names, top_n=10):
+    """
+    Fits a linear line mapping cohort averages to BGG averages, 
+    calculates the residual for each game, and weights by log10(usersrated) 
+    to find the most egregious missed predictions.
+    """
+    # Calculate average rating per game in the cohort
+    game_avg_rating = defaultdict(list)
+    for u, ratings in cohort_ratings.items():
+        for gid, r in ratings.items():
+            if gid in validation_games:
+                game_avg_rating[gid].append(r)
+    
+    valid_gids = []
+    y_cohort = []
+    y_bgg = []
+    
+    for gid in validation_games:
+        if gid in game_avg_rating:
+            valid_gids.append(gid)
+            y_cohort.append(np.mean(game_avg_rating[gid]))
+            y_bgg.append(bgg_averages[gid])
+            
+    if len(y_cohort) < 5:
+        log.error("Not enough data to find worst games")
+        return
+
+    # Fit a linear regression y_bgg = m * y_cohort + b
+    m, b = np.polyfit(y_cohort, y_bgg, 1)
+    
+    log.info(f"Line of best fit mapping Cohort to BGG: y = {m:.3f}x + {b:.3f}")
+    
+    worst_games = []
+    for gid, cohort_avg, true_bgg in zip(valid_gids, y_cohort, y_bgg):
+        predicted_bgg = m * cohort_avg + b
+        residual = abs(true_bgg - predicted_bgg)
+        
+        # If no usersrated found, default to 1 so log evaluates to 0
+        users_count = game_usersrated.get(gid, 1)
+        if users_count < 2:
+             users_count = 2 # Prevent log mapping 1 to 0 completely removing the score
+             
+        weighted_error = residual * np.log10(users_count)
+        
+        worst_games.append({
+            "gid": gid,
+            "name": game_names.get(gid, f"Game {gid}"),
+            "residual": residual,
+            "weighted_error": weighted_error,
+            "cohort_avg": cohort_avg,
+            "predicted_bgg": predicted_bgg,
+            "true_bgg": true_bgg,
+            "usersrated": users_count
+        })
+        
+    worst_games.sort(key=lambda x: x["weighted_error"], reverse=True)
+    
+    print("\n==================================")
+    print(f"Top {top_n} Worst Predicted Games by Current Cohort")
+    print("==================================")
+    for i, g in enumerate(worst_games[:top_n]):
+        print(f"{i+1:2d}. {g['name']} (ID: {g['gid']})")
+        print(f"    Weighted Error: {g['weighted_error']:.3f}")
+        print(f"    Raw Residual:   {g['residual']:.3f} rating points")
+        print(f"    Prediction:     {g['predicted_bgg']:.2f} (Cohort Avg: {g['cohort_avg']:.2f})")
+        print(f"    Actual BGG:     {g['true_bgg']:.2f} (Total Raters: {g['usersrated']:,})")
+        print()
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 3: Iterative Expansion")
     parser.add_argument("--exclude", nargs="*", default=["averagerating"], help="Users to exclude")
     parser.add_argument("--greedy", action="store_true", help="Find user with highest marginal improvement (Greedy selection)")
     parser.add_argument("--next-top", action="store_true", help="Just pick the highest scoring Phase 1 candidate without marginal test")
+    parser.add_argument("--find-worst-game", action="store_true", help="Find the game with the easiest BGG prediction error to correct weighted by usersrated")
     parser.add_argument("--min-games", type=int, default=50, help="Min validation games rated by candidate to test")
     parser.add_argument("--api-token", default="YOUR_BGG_TOKEN", help="BGG API Token")
     args = parser.parse_args()
     
-    if not args.greedy and not args.next_top:
-        log.error("Please specify either --greedy or --next-top")
+    if not any([args.greedy, args.next_top, args.find_worst_game]):
+        log.error("Please specify either --greedy, --next-top, or --find-worst-game")
         return
 
     # Load cache
     offline_client = BGGClient(only_use_cache=True)
-    bgg_averages, sparse_ratings, dense_cohort_collections = load_cached_data(offline_client.session)
+    bgg_averages, sparse_ratings, dense_cohort_collections, game_usersrated, game_names = load_cached_data(offline_client.session)
     
     validation_games = set(bgg_averages.keys())
     log.info(f"Loaded {len(validation_games)} validation games with exact BGG averages.")
@@ -174,6 +255,10 @@ def main():
         
     current_corr = evaluate_cohort(dense_cohort_collections, bgg_averages, validation_games)
     log.info(f"==> Current Cohort Validation Correlation: {current_corr:.4f}")
+
+    if args.find_worst_game:
+        find_worst_predicted_games(dense_cohort_collections, bgg_averages, validation_games, game_usersrated, game_names)
+        return
 
     # Prepare candidate pool
     candidates = {}
