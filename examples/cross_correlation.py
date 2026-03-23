@@ -127,8 +127,8 @@ def main():
         is_full = False
         if gid in game_total_ratings:
             total_expected = game_total_ratings[gid]
-            # If we have matches for ~all expected ratings, or we have 100 pages
-            if total_in_cache >= (total_expected * 0.95) or len(pages) >= 100:
+            # If we have matches for ~all expected ratings (99% complete minimum)
+            if total_in_cache >= (total_expected * 0.99):
                 is_full = True
         
         if args.mode == "full" and not is_full:
