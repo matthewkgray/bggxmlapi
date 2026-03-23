@@ -193,8 +193,8 @@ def main():
                             pref_pct = (strong_preference_count / n) * 100
                             
                         correlations.append((corr, p_val, conf_pct, pref_pct, name1, name2, n, g1_id, g2_id))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.error(f"Failed correlating pair ({g1_id}, {g2_id}): {e}")
 
     # Sort primarily by correlation descending
     correlations.sort(key=lambda x: x[0], reverse=True)
