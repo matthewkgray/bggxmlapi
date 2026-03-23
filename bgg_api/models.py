@@ -541,7 +541,7 @@ class Collection:
     def _fetch_data(self):
         self.fetch()
 
-    def fetch(self, handle_accepted: bool = True, own: Optional[int] = None):
+    def fetch(self, handle_accepted: bool = True, own: Optional[int] = None, rated: Optional[int] = None):
         """
         Fetches the collection data.
 
@@ -549,12 +549,13 @@ class Collection:
             handle_accepted: If True, automatically handles 202 Accepted responses by waiting and retrying.
                              If False, raises BGGRequestQueued when a 202 is received.
             own: 1 to fetch owned games (default), 0 for not owned, None for all.
+            rated: 1 to fetch games the user has rated, 0 to exclude rated games, None for all.
         """
         if self._games is not None:
             return
 
         log.debug(f"Fetching collection for user '{self._user.username}'")
-        collection_xml = self._user._client._get_collection_data(self._user.username, handle_accepted=handle_accepted, own=own)
+        collection_xml = self._user._client._get_collection_data(self._user.username, handle_accepted=handle_accepted, own=own, rated=rated)
 
         games = []
         for item_el in collection_xml.findall("item"):

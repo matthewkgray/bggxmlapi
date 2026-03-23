@@ -205,7 +205,7 @@ class BGGClient:
         params = {"name": username}
         return self._request("user", params)
 
-    def _get_collection_data(self, username: str, handle_accepted: bool = True, own: Optional[int] = 1) -> etree._Element:
+    def _get_collection_data(self, username: str, handle_accepted: bool = True, own: Optional[int] = 1, rated: Optional[int] = None) -> etree._Element:
         """Internal method to fetch the raw XML data for a user's collection."""
         params = {
             "username": username,
@@ -214,6 +214,8 @@ class BGGClient:
         }
         if own is not None:
              params["own"] = own
+        if rated is not None:
+             params["rated"] = rated
              
         # log.info(f"debug: _get_collection_data params for {username}: {params}")
         return self._request("collection", params, handle_accepted=handle_accepted)

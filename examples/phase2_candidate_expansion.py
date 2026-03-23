@@ -61,7 +61,8 @@ def main():
             
             # Explicitly fetch, which will trigger API calls and cache the response
             # BGGClient handles the 202 Accepted retries automatically
-            collection.fetch()
+            # We want all items they have rated, whether they own them or not.
+            collection.fetch(own=None, rated=1)
             
             # Extract their ratings for the games we fetched
             user_ratings = {}
