@@ -11,19 +11,11 @@ from bgg_api import BGGClient
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-def main():
-    parser = argparse.ArgumentParser(description="Phase 1: Candidate Filtering")
-    parser.add_argument("--min-games", type=int, default=50, help="Min games rated in cache to be considered")
-    parser.add_argument("--top-m", type=int, default=1000, help="Number of top candidates to output")
-    args = parser.parse_args()
-
-    # Initialize client assuming offline usage
-    client = BGGClient(only_use_cache=True)
-    session = client.session
-
-    if not isinstance(session, requests_cache.CachedSession):
-        log.error("BGGClient is not using a CachedSession. Cannot scan cache.")
-        return
+def get_top_candidates(session, min_games=50, top_m=1000, exclude_users=None):
+    if exclude_users is None:
+        exclude_users = set()
+    else:
+        exclude_users = set(exclude_users)
 
     log.info("Scanning cache for game data and ratings...")
 
@@ -79,16 +71,17 @@ def main():
             continue
         valid_game_count += 1
         for username, rating in ratings.items():
-            user_ratings[username][gid] = rating
+            if username not in exclude_users:
+                user_ratings[username][gid] = rating
 
     log.info(f"Found {len(user_ratings)} unique users across {valid_game_count} valid games")
 
     # Filter users and calculate correlation
     candidates = []
     
-    log.info(f"Filtering users with >= {args.min_games} ratings and calculating correlations...")
+    log.info(f"Filtering users with >= {min_games} ratings and calculating correlations...")
     for username, ratings in user_ratings.items():
-        if len(ratings) < args.min_games:
+        if len(ratings) < min_games:
             continue
         
         gids = list(ratings.keys())
@@ -116,8 +109,21 @@ def main():
             c["score"] = c["correlation"]
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
-    
-    top_m = candidates[:args.top_m]
+    return candidates[:top_m]
+
+def main():
+    parser = argparse.ArgumentParser(description="Phase 1: Candidate Filtering")
+    parser.add_argument("--min-games", type=int, default=50, help="Min games rated in cache to be considered")
+    parser.add_argument("--top-m", type=int, default=1000, help="Number of top candidates to output")
+    parser.add_argument("--exclude", nargs="*", default=["averagerating"], help="Users to exclude")
+    args = parser.parse_args()
+
+    client = BGGClient(only_use_cache=True)
+    if not isinstance(client.session, requests_cache.CachedSession):
+        log.error("BGGClient is not using a CachedSession. Cannot scan cache.")
+        return
+        
+    top_m = get_top_candidates(client.session, min_games=args.min_games, top_m=args.top_m, exclude_users=args.exclude)
     
     print(f"\nTop {len(top_m)} candidates found:")
     for i, c in enumerate(top_m[:20]):
