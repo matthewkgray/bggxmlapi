@@ -123,7 +123,8 @@ class BGGClient:
                         raise BGGRequestQueued("BGG API returned 202 (Accepted) and handle_accepted is False.")
                     
                     # For 202, just wait a fixed short time, don't use exponential backoff
-                    retry_wait = 2.0
+                    # BGG collections can take a while to aggregate, so we wait 10s to avoid spamming
+                    retry_wait = 10.0
                     log.warning(
                         f"BGG API returned 202 for {url} with params {params}. Retrying in {retry_wait}s... (Attempt {attempt + 1}/{self.max_retries})"
                     )
