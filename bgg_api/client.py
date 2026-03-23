@@ -163,15 +163,16 @@ class BGGClient:
 
                 xml_root = etree.fromstring(response.content)
 
-                # Success! Decay the backoff for the next request
-                old_backoff = self._current_backoff
-                self._current_backoff = max(
-                    self.initial_backoff, self._current_backoff * self.backoff_decay
-                )
-                if old_backoff != self._current_backoff:
-                    log.info(f"Request successful. Decaying backoff from {old_backoff:.2f}s to {self._current_backoff:.2f}s")
-                else:
-                    log.info(f"Request successful for {url}")
+                # Success! Decay the backoff for the next request (only if it actually hit the network)
+                if not getattr(response, "from_cache", False):
+                    old_backoff = self._current_backoff
+                    self._current_backoff = max(
+                        self.initial_backoff, self._current_backoff * self.backoff_decay
+                    )
+                    if old_backoff != self._current_backoff:
+                        log.info(f"Request successful. Decaying backoff from {old_backoff:.2f}s to {self._current_backoff:.2f}s")
+                    else:
+                        log.info(f"Request successful for {url}")
                 return xml_root
 
             except etree.XMLSyntaxError as e:
