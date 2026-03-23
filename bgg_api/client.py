@@ -97,26 +97,6 @@ class BGGClient:
             headers["Authorization"] = f"Bearer {self.api_token}"
 
         # Before making a request, check if it's already in the cache.
-        # If it is, we don't need to apply rate limiting.
-        is_cached = False
-        if isinstance(self.session, requests_cache.CachedSession):
-            req = requests.Request("GET", url, params=params, headers=headers)
-            prepped = self.session.prepare_request(req)
-            cache_key = self.session.cache.create_key(prepped)
-            # contains() returns True even if the cached item is expired. We must explicitly check it.
-            cache_resp = self.session.cache.get_response(cache_key)
-            if cache_resp is not None and getattr(cache_resp, "is_expired", False) is False:
-                is_cached = True
-
-        if not is_cached and self.rate_limit_qps > 0 and not self.only_use_cache:
-            min_interval = self._current_backoff / self.rate_limit_qps
-            now = time.monotonic()
-            elapsed = now - self._last_request_time
-            if elapsed < min_interval:
-                sleep_time = min_interval - elapsed
-                log.debug(f"Throttling request. Sleeping for {sleep_time:.2f}s")
-                time.sleep(sleep_time)
-
         max_attempts = 1 if self.only_use_cache else self.max_retries
         for attempt in range(max_attempts):
             try:
@@ -175,11 +155,19 @@ class BGGClient:
                     self._current_backoff = max(
                         self.initial_backoff, self._current_backoff * self.backoff_decay
                     )
+                    next_throttle = self._current_backoff / self.rate_limit_qps if self.rate_limit_qps > 0 else 0
+                    
                     if old_backoff != self._current_backoff:
-                        next_throttle = self._current_backoff / self.rate_limit_qps if self.rate_limit_qps > 0 else 0
                         log.info(f"[{source_label}] Request successful for {url} {params}. Decaying error backoff to {self._current_backoff:.2f}s (Next throttle wait: {next_throttle:.2f}s)")
                     else:
-                        log.info(f"[{source_label}] Request successful for {url} {params}")
+                        if next_throttle > 0:
+                            log.info(f"[{source_label}] Request successful for {url} {params}. (Throttle wait: {next_throttle:.2f}s)")
+                        else:
+                            log.info(f"[{source_label}] Request successful for {url} {params}")
+                            
+                    # Enforce the throttle gap inherently before returning execution control
+                    if next_throttle > 0:
+                        time.sleep(next_throttle)
                 else:
                     log.info(f"[{source_label}] Request successful for {url} {params}")
                 return xml_root
