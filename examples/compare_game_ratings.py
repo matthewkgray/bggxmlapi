@@ -3,12 +3,13 @@ import logging
 import statistics
 from scipy.stats import pearsonr
 from bgg_api import BGGClient, BGGAPIError
+from bgg_api.stats import calculate_correlation
 
 # Configure logging
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
-def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: float, offline: bool):
+def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: float, offline: bool, correlation_method: str = 'pearson'):
     """
     Fetches ratings for two games, compares the user ratings, and
     provides a summary of preferences.
@@ -106,8 +107,8 @@ def analyze_game_ratings(game1_id: int, game2_id: int, pages: int, pref_thresh: 
         if len(common_raters) > 1:
             ratings1 = [game1_ratings[u] for u in common_raters]
             ratings2 = [game2_ratings[u] for u in common_raters]
-            correlation, p_value = pearsonr(ratings1, ratings2)
-            print(f"Correlation of ratings among common raters: {correlation:.4f} (p-value: {p_value:.4f})")
+            correlation, p_value = calculate_correlation(ratings1, ratings2, method=correlation_method)
+            print(f"{correlation_method.capitalize()} correlation of ratings among common raters: {correlation:.4f} (p-value: {p_value:.4f})")
 
 
         # --- Analysis of users who rated only one game ---
@@ -169,9 +170,15 @@ fetching up to 500 ratings for each to find common raters and analyze their pref
         action="store_true",
         help="Only use cached data and never fetch from the network. Default is False.",
     )
+    parser.add_argument(
+        "--correlation",
+        choices=["pearson", "spearman"],
+        default="pearson",
+        help="Correlation method to use. Default is 'pearson'.",
+    )
     args = parser.parse_args()
-
-    analyze_game_ratings(args.game1_id, args.game2_id, args.pages, args.preference_threshold, args.offline)
+    
+    analyze_game_ratings(args.game1_id, args.game2_id, args.pages, args.preference_threshold, args.offline, correlation_method=args.correlation)
 
 if __name__ == "__main__":
     main()

@@ -5,6 +5,7 @@ import math
 import numpy as np
 from scipy.stats import pearsonr, norm
 from bgg_api import BGGClient, BGGAPIError
+from bgg_api.stats import calculate_correlation, calculate_confidence
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Run in strict offline mode using only cached data.")
     parser.add_argument("--confidence-threshold", type=float, default=0.5, help="Target correlation threshold to test against for confidence calculation. Default is 0.5.")
     parser.add_argument("--preference-threshold", type=float, default=1.0, help="Minimum rating difference to be considered a strong preference. Default is 1.0.")
+    parser.add_argument("--correlation", choices=["pearson", "spearman"], default="pearson", help="Correlation method to use. Default is 'pearson'.")
     args = parser.parse_args()
 
     # Parse linethresh
@@ -147,15 +149,10 @@ def main():
             try:
                 v1 = [r1[u] for u in common_users]
                 v2 = [r2[u] for u in common_users]
-                correlation, p_value = pearsonr(v1, v2)
+                correlation, p_value = calculate_correlation(v1, v2, method=args.correlation)
                 
-                if not math.isnan(correlation):
-                    if co_rater_count > 3:
-                        z = np.arctanh(min(abs(correlation), 0.9999))
-                        z0 = np.arctanh(args.confidence_threshold)
-                        se = 1.0 / np.sqrt(co_rater_count - 3)
-                        z_stat = (z - z0) / se
-                        conf_pct = norm.cdf(z_stat) * 100
+                if correlation is not None and not math.isnan(correlation):
+                    conf_pct = calculate_confidence(correlation, co_rater_count, args.confidence_threshold, method=args.correlation)
                 
                 for r1_val, r2_val in zip(v1, v2):
                     if abs(r1_val - r2_val) > args.preference_threshold:
